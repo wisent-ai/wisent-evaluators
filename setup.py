@@ -2,7 +2,7 @@ from setuptools import setup, find_namespace_packages
 
 setup(
     name="wisent-evaluators",
-    version="0.1.0",
+    version="0.1.1",
     author="Lukasz Bartoszcze and the Wisent Team",
     author_email="lukasz.bartoszcze@wisent.ai",
     description="Benchmark evaluators (metric computation, oracle/judge logic) for the wisent package family",

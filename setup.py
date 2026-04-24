@@ -1,13 +1,13 @@
-from setuptools import setup, find_namespace_packages
+from setuptools import setup, find_packages
 
 setup(
     name="wisent-evaluators",
-    version="0.1.1",
+    version="0.1.2",
     author="Lukasz Bartoszcze and the Wisent Team",
     author_email="lukasz.bartoszcze@wisent.ai",
     description="Benchmark evaluators (metric computation, oracle/judge logic) for the wisent package family",
     url="https://github.com/wisent-ai/wisent-evaluators",
-    packages=find_namespace_packages(include=["wisent.*"]),
+    packages=find_packages(include=["wisent", "wisent.*"]),
     python_requires=">=3.9",
     include_package_data=True,
     package_data={

@@ -1,13 +1,17 @@
-from setuptools import setup, find_packages
+from setuptools import setup, find_namespace_packages
 
 setup(
     name="wisent-evaluators",
-    version="0.1.2",
+    version="0.1.3",
     author="Lukasz Bartoszcze and the Wisent Team",
     author_email="lukasz.bartoszcze@wisent.ai",
     description="Benchmark evaluators (metric computation, oracle/judge logic) for the wisent package family",
     url="https://github.com/wisent-ai/wisent-evaluators",
-    packages=find_packages(include=["wisent", "wisent.*"]),
+    # Namespace-package discovery so wisent/core/reading/evaluators ships even
+    # though wisent/core/__init__.py and wisent/core/reading/__init__.py don't
+    # exist in this repo (they live in wisent-core; this repo only contributes
+    # the evaluators subtree under the wisent.* namespace).
+    packages=find_namespace_packages(include=["wisent", "wisent.*"]),
     python_requires=">=3.9",
     include_package_data=True,
     package_data={

@@ -114,26 +114,37 @@ jobs:
           # quietly measures a superseded artifact. So ask what the best artifact is
           # right now and compare the two things that identify it.
           #
-          # Only the version and the tier prefix are read back. The freshly computed
-          # SURFACE is deliberately thrown away and the committed baseline is never
-          # rewritten here: recomputing both sides at check time is the one shape that
-          # structurally cannot refuse, and this must never be "simplified" into it.
+          # Only identity is read back: the version, and the marker that names the
+          # artifact. `--best` computes NO surface at all — not computed and then
+          # discarded, never produced — so a recomputed surface cannot reach the
+          # decision even by accident, and CI downloads nothing to learn a filename.
+          # The committed baseline is never rewritten here.
           marker="$(jq -r '.source | split(" ") | first' released-surface.json)"
           released="$(jq -r .version released-surface.json)"
 
-          best="$(python3 scripts/baseline.py --stdout)"
+          best="$(python3 scripts/baseline.py --best)"
           best_version="$(printf '%s' "$best" | jq -r .version)"
           best_marker="$(printf '%s' "$best" | jq -r '.source | split(" ") | first')"
 
-          if [ "${best_marker%%:*}" != "${marker%%:*}" ]; then
-            echo "::error::the baseline sits on tier '${marker%%:*}' but '${best_marker%%:*}'" \
-              "is reachable now. Run scripts/baseline.py."
-            false
+          # Whole marker on every tier except head, tier prefix on head. A head marker
+          # carries a sha that moves with every commit, so demanding equality there
+          # would be an infinite ratchet; every other tier names its artifact exactly
+          # and does not move, so the tighter comparison is the correct one.
+          if [ "${marker%%:*}" = head ]; then
+            have="${marker%%:*}"; want="${best_marker%%:*}"
+          else
+            have="$marker"; want="$best_marker"
           fi
+
           if [ "$best_version" != "$released" ]; then
             echo "::error::the baseline describes $released, but PyPI now serves" \
               "$best_version, so the gate is measuring a superseded release." \
               "Run scripts/baseline.py."
             false
           fi
-          echo "Baseline is on the best reachable tier (${marker%%:*}) at $released."
+          if [ "$want" != "$have" ]; then
+            echo "::error::the baseline names '$have', but '$want' is the best artifact" \
+              "reachable now. Run scripts/baseline.py."
+            false
+          fi
+          echo "Baseline names the best reachable artifact: $marker."

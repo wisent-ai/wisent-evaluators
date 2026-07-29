@@ -186,23 +186,30 @@ def cross_check(version: str) -> int:
     return int(False)
 
 
-def best_available() -> dict:
-    """The baseline document for the best artifact the registry serves right now."""
+def identity() -> tuple:
+    """What the registry serves right now: (version, marker, entry, source string).
+
+    Two small JSON requests. Nothing is downloaded and nothing is parsed, which is
+    all the staleness check needs to know whether the committed baseline still names
+    the best artifact.
+    """
     published = latest_published()
     version = published["info"]["version"]
     marker, entry = artifact(version)
-    names, skipped = recover(marker, entry)
 
     # No punctuation between the marker and the prose: the marker is the first
     # whitespace-delimited token, so a trailing comma would end up inside it.
     tail = f"{entry['filename']} unpacked and read by scripts/surface.py"
     if marker == WHEEL_MARKER:
         tail = f"{tail}; that release publishes no sdist"
-    document = {
-        "version": version,
-        "source": f"{marker}:{tail}",
-        "surface": names,
-    }
+    return version, marker, entry, f"{marker}:{tail}"
+
+
+def best_available() -> dict:
+    """The baseline document for the best artifact the registry serves right now."""
+    version, marker, entry, source = identity()
+    names, skipped = recover(marker, entry)
+    document = {"version": version, "source": source, "surface": names}
     if skipped:
         document["unparseable"] = skipped
     return document
@@ -215,15 +222,16 @@ def main(argv: list) -> int:
             raise SystemExit("--cross-check needs the version to compare the readers on")
         return cross_check(positional[FIRST])
 
-    document = best_available()
-    if "--stdout" in argv:
-        # For the workflow's staleness check, which reads back only the version and
-        # the tier. The committed baseline is never rewritten by CI, and this
-        # freshly-computed SURFACE never reaches the decision: comparing a recomputed
-        # surface against itself is the one shape that structurally cannot refuse.
-        print(json.dumps(document, indent=int(True) + int(True)))
+    if "--best" in argv:
+        # For the workflow's staleness check, which needs only the version and the
+        # tier. No surface is computed at all here — not computed and discarded, but
+        # never produced — so a recomputed surface cannot reach the decision even by
+        # accident, and CI does not download an artifact to learn a filename.
+        version, _marker, _entry, source = identity()
+        print(json.dumps({"version": version, "source": source}, indent=int(True) + int(True)))
         return int(False)
 
+    document = best_available()
     BASELINE.write_text(json.dumps(document, indent=int(True) + int(True)) + "\n")
     print(
         f"{BASELINE.name}: {document['source'].split(':')[FIRST]} "

@@ -104,3 +104,36 @@ jobs:
             fi
             echo "Nothing published for wisent-evaluators; $marker is the best tier available."
           fi
+
+      - name: Refuse a baseline the registry has moved past
+        run: |
+          set -euo pipefail
+          # Being honest about your tier is not the same as being on the right one.
+          # A newer release, or a first sdist, can land after the baseline was
+          # generated; the bidirectional check above stays green while the gate
+          # quietly measures a superseded artifact. So ask what the best artifact is
+          # right now and compare the two things that identify it.
+          #
+          # Only the version and the tier prefix are read back. The freshly computed
+          # SURFACE is deliberately thrown away and the committed baseline is never
+          # rewritten here: recomputing both sides at check time is the one shape that
+          # structurally cannot refuse, and this must never be "simplified" into it.
+          marker="$(jq -r '.source | split(" ") | first' released-surface.json)"
+          released="$(jq -r .version released-surface.json)"
+
+          best="$(python3 scripts/baseline.py --stdout)"
+          best_version="$(printf '%s' "$best" | jq -r .version)"
+          best_marker="$(printf '%s' "$best" | jq -r '.source | split(" ") | first')"
+
+          if [ "${best_marker%%:*}" != "${marker%%:*}" ]; then
+            echo "::error::the baseline sits on tier '${marker%%:*}' but '${best_marker%%:*}'" \
+              "is reachable now. Run scripts/baseline.py."
+            false
+          fi
+          if [ "$best_version" != "$released" ]; then
+            echo "::error::the baseline describes $released, but PyPI now serves" \
+              "$best_version, so the gate is measuring a superseded release." \
+              "Run scripts/baseline.py."
+            false
+          fi
+          echo "Baseline is on the best reachable tier (${marker%%:*}) at $released."

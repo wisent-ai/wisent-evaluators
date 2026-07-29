@@ -96,6 +96,17 @@ jobs:
             fi
             echo "Baseline $released is served by PyPI."
           else
+            # Positive control before reading absence as an answer. `curl -sSf` also
+            # fails on no egress, a DNS failure or an outage, and at this level those
+            # are indistinguishable from "not found" — so a network fault would read
+            # as "nothing is published" and PASS. The forward branch above fails
+            # closed on the same fault; this one would not, so it has to prove the
+            # registry answered at all before it trusts a silence.
+            if ! curl -sSf "https://pypi.org/pypi/pip/json" >/dev/null; then
+              echo "::error::cannot reach PyPI, so the absence of wisent-evaluators is" \
+                "unproven. Refusing rather than assuming it is unpublished."
+              false
+            fi
             if curl -sSf "https://pypi.org/pypi/wisent-evaluators/json" >/dev/null; then
               echo "::error::released-surface.json claims $marker, but PyPI does serve" \
                 "wisent-evaluators, so the baseline is dodging a real release." \

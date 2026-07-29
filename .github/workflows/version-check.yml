@@ -58,7 +58,7 @@ jobs:
                 "declares the released version $released. The next version must be $required."
               false
             fi
-            echo "Nothing released yet and the contract is unchanged."
+            echo "setup.py still declares the released $released, and the contract is unchanged."
           elif [ "$declared" != "$required" ]; then
             echo "::error::setup.py declares $declared, but a $change change to" \
               "$released requires $required."
@@ -67,16 +67,40 @@ jobs:
             echo "Declared version matches the $change change."
           fi
 
-      - name: Refuse a baseline nobody can install
-        if: github.ref == 'refs/heads/main'
+      - name: Check the baseline against the registry
         run: |
           set -euo pipefail
-          # released-surface.json must describe a *published* version. If it names one
-          # PyPI does not have, the baseline was hand-edited and every later comparison
-          # is measured against something nobody can install.
+          # released-surface.json must describe what PyPI actually serves, and the
+          # check runs both ways. The first token of "source" is a marker naming the
+          # tier the baseline came from; scripts/baseline.py is what writes it.
+          #
+          # A pypi-* baseline that PyPI does not serve was hand-edited, and every
+          # later comparison is measured against something nobody can install. A
+          # non-registry baseline for a project PyPI *does* serve is worse: it dodges
+          # a real release, so the gate would be scored against the working tree.
+          marker="$(jq -r '.source | split(" ") | first' released-surface.json)"
           released="$(jq -r .version released-surface.json)"
-          if ! curl -sSf "https://pypi.org/pypi/wisent-evaluators/$released/json" >/dev/null; then
-            echo "::error::released-surface.json names $released, which is not on PyPI."
-            false
+          echo "marker: $marker"
+
+          case "$marker" in
+            pypi-*) claims_registry=yes ;;
+            stado:*|git-archive:*|head:*) claims_registry=no ;;
+            *) echo "::error::unknown baseline marker: $marker"; false ;;
+          esac
+
+          if [ "$claims_registry" = yes ]; then
+            if ! curl -sSf "https://pypi.org/pypi/wisent-evaluators/$released/json" >/dev/null; then
+              echo "::error::released-surface.json claims $marker, but PyPI does not serve" \
+                "wisent-evaluators $released. Run scripts/baseline.py."
+              false
+            fi
+            echo "Baseline $released is served by PyPI."
+          else
+            if curl -sSf "https://pypi.org/pypi/wisent-evaluators/json" >/dev/null; then
+              echo "::error::released-surface.json claims $marker, but PyPI does serve" \
+                "wisent-evaluators, so the baseline is dodging a real release." \
+                "Run scripts/baseline.py."
+              false
+            fi
+            echo "Nothing published for wisent-evaluators; $marker is the best tier available."
           fi
-          echo "Baseline $released exists on PyPI."

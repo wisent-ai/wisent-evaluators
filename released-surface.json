@@ -1,6 +1,6 @@
 {
   "version": "0.1.3",
-  "source": "wheel published on PyPI (wisent_evaluators-0.1.3-py3-none-any.whl); the 0.1.3 release has no sdist, so the wheel is the published artifact",
+  "source": "pypi-wheel:wisent_evaluators-0.1.3-py3-none-any.whl unpacked and read by scripts/surface.py; that release publishes no sdist",
   "surface": [
     "agentbench",
     "agentharm",

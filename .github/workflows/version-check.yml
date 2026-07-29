@@ -96,24 +96,32 @@ jobs:
             fi
             echo "Baseline $released is served by PyPI."
           else
-            # Positive control before reading absence as an answer. `curl -sSf` also
-            # fails on no egress, a DNS failure or an outage, and at this level those
-            # are indistinguishable from "not found" — so a network fault would read
-            # as "nothing is published" and PASS. The forward branch above fails
-            # closed on the same fault; this one would not, so it has to prove the
-            # registry answered at all before it trusts a silence.
-            if ! curl -sSf "https://pypi.org/pypi/pip/json" >/dev/null; then
-              echo "::error::cannot reach PyPI, so the absence of wisent-evaluators is" \
-                "unproven. Refusing rather than assuming it is unpublished."
-              false
-            fi
-            if curl -sSf "https://pypi.org/pypi/wisent-evaluators/json" >/dev/null; then
+            # Read the answer, not curl's exit status. Under -sSf a rate limit, an
+            # error page or a permission refusal fails exactly like not-found, so
+            # absence would be inferred from a request that proved nothing. A
+            # reachability control does not close that gap either: a refusal is a
+            # successful request whose answer means nothing. PyPI states absence
+            # explicitly, so demand the testimony and refuse when there is none.
+            #
+            # `|| true` is safe only because both terminating branches below demand
+            # specific content and the fallthrough refuses; never lift it into a check
+            # that treats an empty answer as ok.
+            answer="$(curl -s "https://pypi.org/pypi/wisent-evaluators/json" || true)"
+
+            if printf '%s' "$answer" | jq -e '.info.name' >/dev/null; then
               echo "::error::released-surface.json claims $marker, but PyPI does serve" \
                 "wisent-evaluators, so the baseline is dodging a real release." \
                 "Run scripts/baseline.py."
               false
             fi
-            echo "Nothing published for wisent-evaluators; $marker is the best tier available."
+            if ! printf '%s' "$answer" |
+                 jq -e '(.message // "") | ascii_downcase | contains("not found")' >/dev/null; then
+              echo "::error::PyPI did not say whether it serves wisent-evaluators, so the" \
+                "absence behind $marker is unproven. Refusing rather than assuming it is" \
+                "unpublished."
+              false
+            fi
+            echo "PyPI states wisent-evaluators is not found; $marker is the best tier available."
           fi
 
       - name: Refuse a baseline the registry has moved past

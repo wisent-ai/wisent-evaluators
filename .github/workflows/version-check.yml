@@ -164,6 +164,23 @@ jobs:
           released="$(jq -r .version released-surface.json)"
           echo "marker: $marker"
 
+          # No step in this job asks about a git ref, and that is deliberate rather
+          # than forgotten. scripts/baseline.py mints exactly two markers, pypi-sdist
+          # and pypi-wheel; the non-registry arm below is reachable only by a
+          # hand-edited file. So there is no tag question here to scope to `origin`,
+          # and adding `git ls-remote` — or a tag fetch after checkout — would assert
+          # something no verdict consumes. Measured while writing this:
+          # `git ls-remote --tags origin` lists nothing and the repository serves no
+          # GitHub Release, so no tag-shaped artifact is being ignored either.
+          #
+          # What revokes this: a marker other than pypi-* landing in
+          # released-surface.json, or scripts/baseline.py growing a git-archive or
+          # head tier, or origin serving a tag or a Release. Any of the three and the
+          # "claims nothing was published" branch below must also prove no tag exists
+          # AT ORIGIN — a local listing is empty on a runner whatever origin holds,
+          # and on a fork it names the upstream's tags as ours — which additionally
+          # requires `git fetch --force --tags --unshallow || git fetch --force --tags`
+          # after checkout. oko/.github/workflows/version-check.yml has both shapes.
           case "$marker" in
             pypi-*) claims_registry=yes ;;
             stado:*|git-archive:*|head:*) claims_registry=no ;;

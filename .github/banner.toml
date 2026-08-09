@@ -1,0 +1,15 @@
+[automation]
+managed = true
+source_fingerprint = "4094f233c77a7c56"
+category = "benchmark"
+
+[banner]
+title = "Evaluate benchmarks with shared methods."
+description = "Evaluator registry, benchmark-specific evaluators, and methodology configurations for Wisent."
+product = "Wisent"
+url = "wisent.ai"
+theme = "dark"
+layout = "benchmark-left"
+art_seed = "wisent-evaluators"
+width = 1584
+height = 396

@@ -10,10 +10,18 @@
 
 # wisent-evaluators
 
-Benchmark evaluators split out of the wisent monorepo. Contains the `BaseEvaluator`
-metaclass registry and ~130 benchmark-specific evaluator classes (math, code,
-hallucination, safety, multilingual, reasoning). Ships the 380 JSON config files
-under `wisent/support/parameters/evaluator_methodologies/` as package data.
+Monitor and Control Your AI Agent Brain.
+
+You look at what your model says. But what was it actually thinking? Wisent shows
+you how to use information from AI activations, intermediate steps within its
+layers, to your advantage. Wisent is a full toolkit for representation
+engineering, activation steering and mechanistic interpretability. Cut
+hallucination rates, decensor your model or stop it from being detected by
+AI-generated text detectors. Your Models — Yours to Control. Better than
+fine-tuning. Better than analysing the outputs directly.
+
+Deploy the latest research in your stack. This is where the benchmark evaluators
+live — the registry, ~130 evaluator classes and their 380 configs.
 
 ## Install
 

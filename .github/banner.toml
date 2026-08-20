@@ -1,13 +1,13 @@
 [automation]
 managed = true
-source_fingerprint = "4094f233c77a7c56"
+source_fingerprint = "56b3288cb553bc36"
 category = "benchmark"
 
 [banner]
 title = "Evaluate benchmarks with shared methods."
 description = "Evaluator registry, benchmark-specific evaluators, and methodology configurations for Wisent."
 product = "Wisent"
-url = "wisent.ai"
+url = "wisent.com"
 theme = "dark"
 layout = "benchmark-left"
 art_seed = "wisent-evaluators"

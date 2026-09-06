@@ -31,9 +31,9 @@ jobs:
         # error: externally-managed-environment before any check runs — a gate that can
         # never pass, worth exactly what one that can never fail is worth. The venv
         # sidesteps the marker without --break-system-packages, and putting its bin on
-        # GITHUB_PATH leaves every later step's `autoversion` call unchanged. This
-        # repository's own scripts stay on the system python3, which is right: they
-        # import the stdlib and nothing else.
+        # GITHUB_PATH leaves every later step's `autoversion` call unchanged. The
+        # repository-specific checks run on the system python3, which is right:
+        # their inline implementation imports the standard library and nothing else.
         run: |
           : "${RUNNER_TEMP:=$(mktemp -d)}"
           : "${GITHUB_PATH:=$(mktemp)}"
@@ -68,7 +68,100 @@ jobs:
         # with ast, so this stays cheap and cannot be broken by an unrelated
         # dependency. A module that does not parse fails the step rather than
         # silently shrinking the surface.
-        run: python3 scripts/surface.py > "$RUNNER_TEMP/candidate.json"
+        run: |
+          python3 - <<'PY' > "$RUNNER_TEMP/candidate.json"
+          import ast
+          import json
+          from pathlib import Path
+
+          ROOT_CLASS = "BaseEvaluator"
+          NAME_ATTRIBUTE = "name"
+
+          def base_name(node):
+              if isinstance(node, ast.Name):
+                  return node.id
+              if isinstance(node, ast.Attribute):
+                  return node.attr
+              if isinstance(node, ast.Subscript):
+                  return base_name(node.value)
+              return ""
+
+          def registered_name(node):
+              found = ""
+              for statement in node.body:
+                  if isinstance(statement, ast.Assign):
+                      targets = [
+                          target.id
+                          for target in statement.targets
+                          if isinstance(target, ast.Name)
+                      ]
+                      value = statement.value
+                  elif isinstance(statement, ast.AnnAssign) and isinstance(
+                      statement.target, ast.Name
+                  ):
+                      targets, value = [statement.target.id], statement.value
+                  else:
+                      continue
+                  if NAME_ATTRIBUTE in targets and isinstance(
+                      value, ast.Constant
+                  ) and isinstance(value.value, str):
+                      found = value.value
+              return found
+
+          package = Path("wisent")
+          if not package.is_dir():
+              raise SystemExit(f"{package} is not a directory")
+
+          declared = []
+          for source in sorted(package.rglob("*.py")):
+              try:
+                  tree = ast.parse(source.read_text(), filename=str(source))
+              except (OSError, SyntaxError) as error:
+                  raise SystemExit(
+                      f"{source}: surface is unknown because the module cannot be read: {error}"
+                  ) from error
+              for node in ast.walk(tree):
+                  if isinstance(node, ast.ClassDef):
+                      bases = [
+                          name
+                          for name in (base_name(base) for base in node.bases)
+                          if name
+                      ]
+                      declared.append(
+                          (node.name, bases, registered_name(node))
+                      )
+
+          evaluators = {ROOT_CLASS}
+          growing = True
+          while growing:
+              growing = False
+              for class_name, bases, _ in declared:
+                  if class_name not in evaluators and any(
+                      base in evaluators for base in bases
+                  ):
+                      evaluators.add(class_name)
+                      growing = True
+
+          names = set()
+          anonymous = []
+          for class_name, _, name in declared:
+              if class_name not in evaluators or class_name == ROOT_CLASS:
+                  continue
+              if name:
+                  names.add(name)
+              else:
+                  anonymous.append(class_name)
+          if anonymous:
+              raise SystemExit(
+                  "evaluator subclasses have no literal registered name: "
+                  + ", ".join(sorted(anonymous))
+              )
+          if not names:
+              raise SystemExit(
+                  f"no evaluator names found under {package}; surface is unknown"
+              )
+          print(json.dumps({"surface": sorted(names)}, indent=2))
+          PY
 
       - name: Compare against the released contract
         run: |
@@ -154,7 +247,7 @@ jobs:
           set -euo pipefail
           # released-surface.json must describe what PyPI actually serves, and the
           # check runs both ways. The first token of "source" is a marker naming the
-          # tier the baseline came from; scripts/baseline.py is what writes it.
+          # tier the baseline came from; the baseline generator is what writes it.
           #
           # A pypi-* baseline that PyPI does not serve was hand-edited, and every
           # later comparison is measured against something nobody can install. A
@@ -165,7 +258,7 @@ jobs:
           echo "marker: $marker"
 
           # No step in this job asks about a git ref, and that is deliberate rather
-          # than forgotten. scripts/baseline.py mints exactly two markers, pypi-sdist
+          # than forgotten. The deleted generator minted exactly two markers, pypi-sdist
           # and pypi-wheel; the non-registry arm below is reachable only by a
           # hand-edited file. So there is no tag question here to scope to `origin`,
           # and adding `git ls-remote` — or a tag fetch after checkout — would assert
@@ -174,7 +267,7 @@ jobs:
           # GitHub Release, so no tag-shaped artifact is being ignored either.
           #
           # What revokes this: a marker other than pypi-* landing in
-          # released-surface.json, or scripts/baseline.py growing a git-archive or
+          # released-surface.json, or the baseline policy gaining a git-archive or
           # head tier, or origin serving a tag or a Release. Any of the three and the
           # "claims nothing was published" branch below must also prove no tag exists
           # AT ORIGIN — a local listing is empty on a runner whatever origin holds,
@@ -190,7 +283,7 @@ jobs:
           if [ "$claims_registry" = yes ]; then
             if ! curl -sSf "https://pypi.org/pypi/wisent-evaluators/$released/json" >/dev/null; then
               echo "::error::released-surface.json claims $marker, but PyPI does not serve" \
-                "wisent-evaluators $released. Run scripts/baseline.py."
+                "wisent-evaluators $released. Regenerate released-surface.json from PyPI."
               false
             fi
             echo "Baseline $released is served by PyPI."
@@ -210,7 +303,7 @@ jobs:
             if printf '%s' "$answer" | jq -e '.info.name' >/dev/null; then
               echo "::error::released-surface.json claims $marker, but PyPI does serve" \
                 "wisent-evaluators, so the baseline is dodging a real release." \
-                "Run scripts/baseline.py."
+                "Regenerate released-surface.json from PyPI."
               false
             fi
             if ! printf '%s' "$answer" |
@@ -240,7 +333,53 @@ jobs:
           marker="$(jq -r '.source | split(" ") | first' released-surface.json)"
           released="$(jq -r .version released-surface.json)"
 
-          best="$(python3 scripts/baseline.py --best)"
+          python3 - <<'PY' > "$RUNNER_TEMP/best.json"
+          import json
+          import urllib.request
+
+          project = "wisent-evaluators"
+          index = "https://pypi.org/pypi"
+          with urllib.request.urlopen(f"{index}/{project}/json") as response:
+              published = json.load(response)
+          version = published["info"]["version"]
+          with urllib.request.urlopen(
+              f"{index}/{project}/{version}/json"
+          ) as response:
+              release = json.load(response)
+          sdist = next(
+              (
+                  entry
+                  for entry in release["urls"]
+                  if entry["packagetype"] == "sdist"
+              ),
+              None,
+          )
+          wheel = next(
+              (
+                  entry
+                  for entry in release["urls"]
+                  if entry["filename"].endswith("-py3-none-any.whl")
+              ),
+              None,
+          )
+          if sdist:
+              marker, entry = "pypi-sdist", sdist
+          elif wheel:
+              marker, entry = "pypi-wheel", wheel
+          else:
+              raise SystemExit(
+                  f"{project} {version} has no recoverable sdist or pure-Python wheel"
+              )
+          print(
+              json.dumps(
+                  {
+                      "version": version,
+                      "source": f"{marker}:{entry['filename']}",
+                  }
+              )
+          )
+          PY
+          best="$(cat "$RUNNER_TEMP/best.json")"
           best_version="$(printf '%s' "$best" | jq -r .version)"
           best_marker="$(printf '%s' "$best" | jq -r '.source | split(" ") | first')"
 
@@ -257,12 +396,12 @@ jobs:
           if [ "$best_version" != "$released" ]; then
             echo "::error::the baseline describes $released, but PyPI now serves" \
               "$best_version, so the gate is measuring a superseded release." \
-              "Run scripts/baseline.py."
+              "Regenerate released-surface.json from PyPI."
             false
           fi
           if [ "$want" != "$have" ]; then
             echo "::error::the baseline names '$have', but '$want' is the best artifact" \
-              "reachable now. Run scripts/baseline.py."
+              "reachable now. Regenerate released-surface.json from PyPI."
             false
           fi
           echo "Baseline names the best reachable artifact: $marker."

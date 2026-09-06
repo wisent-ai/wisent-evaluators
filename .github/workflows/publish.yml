@@ -22,7 +22,7 @@ jobs:
         #
         # The version is read in the one spelling this repository already uses for it —
         # the same awk over setup.py that .github/workflows/version-check.yml reads
-        # `declared` with. scripts/baseline.py is deliberately NOT asked: it refuses to
+        # `declared` with. The baseline generator is deliberately NOT asked: it refuses to
         # look at setup.py's version at all (its docstring says so), because a bump ahead
         # of a release would 404 and it would measure the working tree. setup.py IS the
         # manifest here — pyproject.toml carries only [build-system] and [tool.ruff], with

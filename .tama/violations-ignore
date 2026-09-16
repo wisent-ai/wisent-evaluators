@@ -2,3 +2,23 @@
 # from .github/banner.toml and replaced whole on every run, so a repository
 # audit reads it as generated output instead of asking somebody to split it.
 assets/readme-banner.svg
+#
+# The methodology registry: one JSON file per benchmark, named after that
+# benchmark, grouped by the family it belongs to. The count is the number of
+# benchmarks this product can evaluate — eighty-five of them are math
+# benchmarks alone — and a loader reads a family whole. Splitting a family
+# would cut a list its reader walks, and renaming one file would break the
+# benchmark it answers for.
+wisent/support/parameters/evaluator_methodologies
+wisent/support/parameters/evaluator_methodologies/
+#
+# Captured output of a containerised lm-eval run, kept beside the code that
+# reads it: one file per artifact the harness wrote, under the model it ran.
+wisent/core/reading/evaluators/core/benchmark_specific/specialized/lm_eval_docker/output
+wisent/core/reading/evaluators/core/benchmark_specific/specialized/lm_eval_docker/output/
+#
+# The repository root. Every file there is read by a tool at exactly that
+# path: pip reads pyproject.toml and setup.py, the release check reads
+# released-surface.json, the smoke test is invoked as smoke_test.py, GitHub
+# reads README.md and LICENSE. The product's own code lives under wisent/.
+.

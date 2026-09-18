@@ -12,6 +12,10 @@ from wisent.core.utils.config_tools.constants import RECURSION_INITIAL_DEPTH
 
 logger = logging.getLogger(__name__)
 
+# At most 30 prompts are evaluated; without a baseline the difference is the neutral 50/100.
+MAX_EVAL_PROMPTS = 30
+NEUTRAL_DIFFERENCE_SCORE = 50.0
+
 
 class PersonalizationEvaluator:
     """Evaluator for personality/style trait steering."""
@@ -101,8 +105,8 @@ class PersonalizationEvaluator:
             if not isinstance(custom_prompts, list):
                 custom_prompts = custom_prompts.get("prompts", [])
             return [p if isinstance(p, str) else p.get("prompt", str(p))
-                    for p in custom_prompts[:30]]
-        return self.DEFAULT_PROMPTS[:30]
+                    for p in custom_prompts[:MAX_EVAL_PROMPTS]]
+        return self.DEFAULT_PROMPTS[:MAX_EVAL_PROMPTS]
 
     def generate_baseline_responses(self) -> list[str]:
         """Generate baseline responses, using HF cache when available."""
@@ -153,7 +157,7 @@ class PersonalizationEvaluator:
                 diversity_max_sample_size=self._diversity_max_sample_size,
             )
         else:
-            difference_score = 50.0
+            difference_score = NEUTRAL_DIFFERENCE_SCORE
 
         quality_score = evaluate_quality(
             responses,

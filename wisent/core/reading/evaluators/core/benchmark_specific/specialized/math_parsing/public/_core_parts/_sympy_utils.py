@@ -12,6 +12,11 @@ from typing import Dict as T_Dict
 from typing import Union as T_Union
 from wisent.core.utils.config_tools.constants import NORM_EPS, SYMPY_REL_TOL, MATH_PERCENT_REL_TOL
 DEF_N_PROC: int = os.cpu_count() // 2
+# A percentage is a number over one hundred; `\{…\}` is two characters each side;
+# ASCII ends at code point 127.
+PERCENT = 100
+_LATEX_BRACE_LEN = 2
+_LAST_ASCII = 127
 
 STRIP_STRS: List[str] = [
     ":", "/", ",", "#", "?", "$", '"', "'",
@@ -57,7 +62,7 @@ def latex2sympy_interval(
         intervals = [latex2sympy_interval(exp) for exp in exps]
         return Intersection(*intervals)
     if s.startswith("\\{") and s.endswith("\\}"):
-        return FiniteSet(simplify(latex2sympy_fix(s[2:-2])))
+        return FiniteSet(simplify(latex2sympy_fix(s[_LATEX_BRACE_LEN:-_LATEX_BRACE_LEN])))
     elif s.startswith("{") and s.endswith("}"):
         return FiniteSet(simplify(latex2sympy_fix(s[1:-1])))
     if s.startswith("("):
@@ -133,7 +138,7 @@ DEF_PERCENT_REL_TOL = MATH_PERCENT_REL_TOL
 
 def has_non_ascii(s: str) -> bool:
     for char in s:
-        if ord(char) > 127:
+        if ord(char) > _LAST_ASCII:
             return True
     return False
 

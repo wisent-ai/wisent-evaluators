@@ -6,6 +6,8 @@ from textwrap import dedent
 _FENCE_RE = re.compile(
     r"```(?P<lang>[a-zA-Z0-9_+-]*)\s*\n(?P<code>.*?)(?:```|$)", re.DOTALL
 )
+# A triple quote is three characters on each side.
+_TRIPLE_QUOTE_LEN = 3
 
 def extract_code_block(raw: str, prefer_langs=("python","py","cpp","c++","java"), strict: bool = False) -> str:
     """
@@ -78,9 +80,9 @@ def strip_triple_quotes(s: str) -> str:
     """
     s = s.strip()
     if s.startswith('"""') and s.endswith('"""'):
-        return s[3:-3].strip()
+        return s[_TRIPLE_QUOTE_LEN:-_TRIPLE_QUOTE_LEN].strip()
     if s.startswith("'''") and s.endswith("'''"):
-        return s[3:-3].strip()
+        return s[_TRIPLE_QUOTE_LEN:-_TRIPLE_QUOTE_LEN].strip()
     return s
 
 def normalize_whitespace(code: str) -> str:

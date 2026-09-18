@@ -21,6 +21,11 @@ from wisent.core.reading.evaluators.core._synthetic_evaluator_helpers import (
 
 logger = logging.getLogger(__name__)
 
+# The judge answers with a score from 1 to 10; an unparsable answer is read as neutral.
+JUDGE_SCORE_MIN = 1
+JUDGE_SCORE_MAX = 10
+NEUTRAL_SCORE = 0.5
+
 # Default diverse prompts for testing general traits
 DEFAULT_TEST_PROMPTS = [
     "Explain how photosynthesis works.",
@@ -223,14 +228,14 @@ Respond with ONLY a single number (1-10), nothing else."""
             numbers = re.findall(r'\b(\d+(?:\.\d+)?)\b', score_text)
             if numbers:
                 score = float(numbers[0])
-                score = max(1, min(10, score))
-                return score / 10.0
+                score = max(JUDGE_SCORE_MIN, min(JUDGE_SCORE_MAX, score))
+                return score / JUDGE_SCORE_MAX
             else:
                 logger.warning(f"Could not parse score from: {score_text}")
-                return 0.5
+                return NEUTRAL_SCORE
         except Exception as e:
             logger.warning(f"Evaluation failed: {e}")
-            return 0.5
+            return NEUTRAL_SCORE
 
     def evaluate_batch(self, responses: List[str], prompts: List[str] = None) -> List[float]:
         """Evaluate multiple responses."""

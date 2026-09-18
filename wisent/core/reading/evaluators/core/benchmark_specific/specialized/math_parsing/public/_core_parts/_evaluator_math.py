@@ -11,7 +11,7 @@ from sympy.parsing.sympy_parser import parse_expr
 from wisent.core.utils.infra_tools.errors import InvalidDataFormatError, InvalidValueError
 from wisent.core.utils.config_tools.constants import MATH_EVAL_N_CHECKS
 from wisent.core.reading.evaluators.benchmark_specific.math_parsing._core_parts._sympy_utils import (
-    DEF_ABS_TOL, DEF_PERCENT_REL_TOL, DEF_REL_TOL,
+    DEF_ABS_TOL, DEF_PERCENT_REL_TOL, DEF_REL_TOL, PERCENT,
     has_non_ascii, is_querying4set, is_set,
     latex2sympy_fix, latex2sympy_interval, norm_str2weekday, parse,
 )
@@ -209,7 +209,7 @@ class EvaluatorMath(EvaluatorMathHelpersMixin):
         if self.include_percentage and self.could_be_percent(pred_num):
             percent_ref_nums: List[float] = [
                 num
-                for num in [ref_num / 100, ref_num * 100]
+                for num in [ref_num / PERCENT, ref_num * PERCENT]
                 if self.could_be_percent(num)
             ]
             for item in percent_ref_nums:

@@ -5,6 +5,9 @@ from wisent.core.utils.config_tools.constants import BYTES_PER_MB
 
 JOB_FILE = "/job/job.json"
 WORKDIR = "/work"
+# The shell's conventions: 124 for a timed-out command, 127 for one that was not found.
+EXIT_TIMEOUT = 124
+EXIT_NOT_FOUND = 127
 
 def set_limits(job):
     """
@@ -64,11 +67,11 @@ def run(argv: list[str], job) -> tuple[int,str,str,float,str]:
         except subprocess.TimeoutExpired:
             try: os.killpg(p.pid, signal.SIGKILL)
             except Exception: pass
-            return 124, "", f"Time limit exceeded ({job['wall_timeout_s']}s)\n", time.time()-start, "timeout"
+            return EXIT_TIMEOUT, "", f"Time limit exceeded ({job['wall_timeout_s']}s)\n", time.time()-start, "timeout"
         status = "ok" if p.returncode == 0 else "nonzero"
         return p.returncode, out, err, time.time()-start, status
     except FileNotFoundError as e:
-        return 127, "", f"{e}\n", time.time()-start, "missing"
+        return EXIT_NOT_FOUND, "", f"{e}\n", time.time()-start, "missing"
     except Exception as e:
         return 1, "", f"{e}\n", time.time()-start, "error"
 

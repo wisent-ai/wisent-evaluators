@@ -15,6 +15,7 @@ from wisent.core.reading.evaluators.benchmark_specific.math_parsing._scripts_ext
 from wisent.core.reading.evaluators.benchmark_specific.math_parsing._scripts_equality import (
     math_equal,
 )
+from wisent.core.reading.evaluators.benchmark_specific.math_parsing._core_parts._sympy_utils import PERCENT
 
 class AdaptedEvaluatorMath(EvaluatorMath):
     def is_num_eq(
@@ -33,7 +34,7 @@ class AdaptedEvaluatorMath(EvaluatorMath):
         if self.include_percentage and self.could_be_percent(pred_num):
             percent_ref_nums: List[float] = [
                 num
-                for num in [ref_num / 100, ref_num * 100]
+                for num in [ref_num / PERCENT, ref_num * PERCENT]
                 if self.could_be_percent(num)
             ]
             for item in percent_ref_nums:

@@ -23,6 +23,13 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
+# GPTZero needs at least 50 characters; a shorter text scores neutral. The mixed
+# score weighs the document-level AI probability 0.7 and the sentence average 0.3.
+MIN_TEXT_CHARS = 50
+NEUTRAL_SCORE = 0.5
+DOCUMENT_WEIGHT = 0.7
+SENTENCE_AVERAGE_WEIGHT = 0.3
+
 from wisent.core.reading.evaluators.custom.custom_evaluator import (
     APIEvaluator,
     CustomEvaluatorConfig,
@@ -95,9 +102,9 @@ class GPTZeroEvaluator(APIEvaluator):
         """Call GPTZero API to analyze text."""
         import requests
         
-        if len(response.strip()) < 50:
+        if len(response.strip()) < MIN_TEXT_CHARS:
             logger.warning("Text too short for GPTZero analysis, returning neutral score")
-            return {"score": 0.5, "error": "text_too_short"}
+            return {"score": NEUTRAL_SCORE, "error": "text_too_short"}
         
         headers = {
             "x-api-key": self.api_key,
@@ -142,7 +149,7 @@ class GPTZeroEvaluator(APIEvaluator):
         if self.optimize_for == "human_prob":
             score = human_prob
         elif self.optimize_for == "mixed_prob":
-            score = 1.0 - (ai_prob * 0.7 + avg_ai_prob * 0.3)
+            score = 1.0 - (ai_prob * DOCUMENT_WEIGHT + avg_ai_prob * SENTENCE_AVERAGE_WEIGHT)
         elif self.optimize_for == "avg_human_prob":
             score = avg_human_prob
         else:

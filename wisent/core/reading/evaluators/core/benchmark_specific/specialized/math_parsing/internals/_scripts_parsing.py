@@ -7,6 +7,7 @@ from wisent.core.utils.config_tools.constants import MATH_REL_TOL
 from wisent.core.reading.evaluators.benchmark_specific.math_parsing._scripts_constants import (
     unit_texts,
 )
+from wisent.core.reading.evaluators.benchmark_specific.math_parsing._core_parts._sympy_utils import PERCENT
 
 def numeric_equal(prediction: float, reference: float):
     # Note that relative tolerance has significant impact
@@ -27,7 +28,7 @@ def parse_digits(num):
             if num.endswith("\\"):
                 num = num[:-1]
             try:
-                return float(num) / 100
+                return float(num) / PERCENT
             except:
                 pass
     return None

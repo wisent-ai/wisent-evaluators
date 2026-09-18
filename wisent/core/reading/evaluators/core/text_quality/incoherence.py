@@ -25,6 +25,25 @@ from .gibberish import (
     _is_nonsense_word,
 )
 
+# The heuristics' lines. Under four words is unhelpful; over half the sentences
+# repeated, a trigram seen three times, or under 40 % unique words over five is
+# repetitive; a content word is four or more letters and is excessive at three uses
+# making over 15 % of content; over 15 % nonsense words is incoherent. An empty list
+# scores the neutral 50, and a too-short response keeps a tenth of its score.
+MIN_HELPFUL_WORDS = 4
+MAX_DUPLICATE_SENTENCE_RATIO = 0.5
+MIN_WORDS_FOR_TRIGRAMS = 6
+TRIGRAM = 3
+REPEATED_TRIGRAM_COUNT = 3
+MIN_WORDS_FOR_UNIQUENESS = 5
+MIN_UNIQUE_WORD_RATIO = 0.4
+MIN_CONTENT_WORD_CHARS = 4
+EXCESSIVE_WORD_COUNT = 3
+MAX_CONTENT_WORD_SHARE = 0.15
+MAX_NONSENSE_WORD_RATIO = 0.15
+NEUTRAL_QUALITY_SCORE = 50.0
+TOO_SHORT_SCORE_FACTOR = 0.1
+
 
 def _is_incoherent(text: str, min_sentence_length: int, *, nonsense_min_tokens: int) -> bool:
     """
@@ -47,7 +66,7 @@ def _is_incoherent(text: str, min_sentence_length: int, *, nonsense_min_tokens: 
 
     # Check 2: Single word or very few words (unhelpful)
     tokens = text.split()
-    if len(tokens) < 4:
+    if len(tokens) < MIN_HELPFUL_WORDS:
         return True
 
     # Check 3: Consecutive duplicate words (e.g., "policymakers policymakers")
@@ -62,23 +81,23 @@ def _is_incoherent(text: str, min_sentence_length: int, *, nonsense_min_tokens: 
     if len(sentences) >= 2:
         unique_sentences = set(sentences)
         # If more than half the sentences are duplicates, it's repetitive
-        if len(unique_sentences) < len(sentences) * 0.5:
+        if len(unique_sentences) < len(sentences) * MAX_DUPLICATE_SENTENCE_RATIO:
             return True
 
     # Check 5: Repeated phrases (3+ word sequences appearing multiple times)
-    if len(tokens) >= 6:
-        trigrams = [' '.join(tokens[i:i+3]) for i in range(len(tokens) - 2)]
+    if len(tokens) >= MIN_WORDS_FOR_TRIGRAMS:
+        trigrams = [' '.join(tokens[i:i+TRIGRAM]) for i in range(len(tokens) - (TRIGRAM - 1))]
         trigram_counts = Counter(trigrams)
         most_common_count = trigram_counts.most_common(1)[0][1] if trigrams else 0
         # If any trigram appears 3+ times, it's repetitive
-        if most_common_count >= 3:
+        if most_common_count >= REPEATED_TRIGRAM_COUNT:
             return True
 
     # Check 6: Circular statements that don't add information
     # e.g., "Football, football, and the beautiful game are intertwined, intertwined, intertwined"
     unique_tokens = set(t.lower().strip('.,!?"\'-') for t in tokens)
     # If unique words are less than 40% of total words, very repetitive
-    if len(tokens) >= 5 and len(unique_tokens) / len(tokens) < 0.4:
+    if len(tokens) >= MIN_WORDS_FOR_UNIQUENESS and len(unique_tokens) / len(tokens) < MIN_UNIQUE_WORD_RATIO:
         return True
 
     # Check 7: Non-answer patterns
@@ -94,7 +113,7 @@ def _is_incoherent(text: str, min_sentence_length: int, *, nonsense_min_tokens: 
             return True
 
     # Check 8: Excessive repetition of the same word (3+ times for content words)
-    content_words = [t.lower().strip('.,!?"\'-') for t in tokens if len(t) >= 4]
+    content_words = [t.lower().strip('.,!?"\'-') for t in tokens if len(t) >= MIN_CONTENT_WORD_CHARS]
     if content_words:
         word_counts = Counter(content_words)
         for word, count in word_counts.items():
@@ -102,7 +121,7 @@ def _is_incoherent(text: str, min_sentence_length: int, *, nonsense_min_tokens: 
             if word in {'that', 'this', 'have', 'been', 'with', 'from', 'they', 'would', 'could', 'should'}:
                 continue
             # If any content word appears more than 3 times in a short response, flag it
-            if count >= 3 and count / len(content_words) > 0.15:
+            if count >= EXCESSIVE_WORD_COUNT and count / len(content_words) > MAX_CONTENT_WORD_SHARE:
                 return True
 
     # Check 9: Nonsense words (using tokenizer fragmentation)
@@ -110,10 +129,10 @@ def _is_incoherent(text: str, min_sentence_length: int, *, nonsense_min_tokens: 
     if tokenizer and len(tokens) >= nonsense_min_tokens:
         nonsense_count = 0
         for token in tokens_lower:
-            if len(token) >= 4 and _is_nonsense_word(token, tokenizer, nonsense_min_tokens=nonsense_min_tokens):
+            if len(token) >= MIN_CONTENT_WORD_CHARS and _is_nonsense_word(token, tokenizer, nonsense_min_tokens=nonsense_min_tokens):
                 nonsense_count += 1
         # If more than 15% of words are nonsense, flag it
-        if nonsense_count / len(tokens) > 0.15:
+        if nonsense_count / len(tokens) > MAX_NONSENSE_WORD_RATIO:
             return True
 
     return False
@@ -162,7 +181,7 @@ def evaluate_quality(
     # Handle list inputs - compute average quality
     if isinstance(response, list):
         if not response:
-            return 50.0  # Default if empty
+            return NEUTRAL_QUALITY_SCORE
         scores = [evaluate_quality(
             r, min_sentence_length=min_sentence_length, nonsense_min_tokens=nonsense_min_tokens,
             quality_min_response_length=quality_min_response_length,
@@ -188,7 +207,7 @@ def evaluate_quality(
 
     # Check 1: Empty or too short
     if len(response.strip()) < quality_min_response_length:
-        score *= 0.1
+        score *= TOO_SHORT_SCORE_FACTOR
         # Scale to 1-100 and return early
         return max(1.0, score * SCORE_SCALE_100 + 1.0)
 

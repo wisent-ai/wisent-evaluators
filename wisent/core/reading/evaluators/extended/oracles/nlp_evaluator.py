@@ -11,6 +11,18 @@ __all__ = [
     "NLPEvaluator",
 ]
 
+# Confidence shapes. An undecidable pick is 0.5. A categorical NLI decision is 0.75
+# plus its margin; a textual entailment counts from 0.45 forward or 0.50 reverse and
+# is 0.7 + 0.3·entailment; an embedding decision is 0.5 plus its delta, capped at 0.8.
+UNDECIDED_CONFIDENCE = 0.5
+NLI_CATEGORICAL_BASE = 0.75
+TEXT_ENTAILMENT_MIN = 0.45
+REVERSE_ENTAILMENT_MIN = 0.50
+TEXT_ENTAILMENT_BASE = 0.7
+TEXT_ENTAILMENT_WEIGHT = 0.3
+EMBEDDING_BASE = 0.5
+EMBEDDING_CAP = 0.8
+
 
 class NLPEvaluator(NLPEvaluatorHelpersMixin, BaseEvaluator):
     """
@@ -146,7 +158,7 @@ class NLPEvaluator(NLPEvaluatorHelpersMixin, BaseEvaluator):
             if options and not exp_textnormalize_text:
                 return EvalResult(
                     ground_truth="UNKNOWN", method_used=self.name,
-                    confidence=0.5,
+                    confidence=UNDECIDED_CONFIDENCE,
                     details="Explicit choice extracted, but no "
                             "ground-truth index supplied",
                     meta=meta)
@@ -166,7 +178,7 @@ class NLPEvaluator(NLPEvaluatorHelpersMixin, BaseEvaluator):
                     and margin >= self._nli_margin):
                 if exp_idx in (1, 2):
                     ok = (pred_idx == exp_idx)
-                    confidence = float(min(1.0, 0.75 + margin)) if ok else 0.0
+                    confidence = float(min(1.0, NLI_CATEGORICAL_BASE + margin)) if ok else 0.0
                     return self._result(
                         ok, confidence,
                         "NLI cross-encoder decision (categorical)", meta)
@@ -179,11 +191,11 @@ class NLPEvaluator(NLPEvaluatorHelpersMixin, BaseEvaluator):
             meta["nli"]["entail_exp_to_resp"] = (
                 round(ent_rev, ROUNDING_PRECISION) if ent_rev is not None else None)
             if ent is not None:
-                if (ent >= max(self._nli_ent_min, 0.45) or
-                        (ent_rev is not None and ent_rev >= 0.50)):
+                if (ent >= max(self._nli_ent_min, TEXT_ENTAILMENT_MIN) or
+                        (ent_rev is not None and ent_rev >= REVERSE_ENTAILMENT_MIN)):
                     ok = True
                     confidence = float(
-                        min(1.0, 0.7 + 0.3 * max(ent or 0.0,
+                        min(1.0, TEXT_ENTAILMENT_BASE + TEXT_ENTAILMENT_WEIGHT * max(ent or 0.0,
                                                    ent_rev or 0.0)))
                     return self._result(
                         ok, confidence,
@@ -206,7 +218,7 @@ class NLPEvaluator(NLPEvaluatorHelpersMixin, BaseEvaluator):
                     pred_idx = 1 if sA > sB else 2
                     if exp_idx in (1, 2):
                         ok = (pred_idx == exp_idx)
-                        confidence = float(min(0.8, 0.5 + delta))
+                        confidence = float(min(EMBEDDING_CAP, EMBEDDING_BASE + delta))
                         return self._result(
                             ok, confidence,
                             "Embedding similarity decision (categorical)",

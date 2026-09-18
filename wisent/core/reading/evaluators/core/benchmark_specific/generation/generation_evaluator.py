@@ -19,6 +19,18 @@ _EMB_MODEL = None
 CE_MODEL_NAME = "cross-encoder/nli-deberta-v3-small"
 EMB_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
+# A substring match is worth 0.9. NLI entailment counts from 0.5 and is reported as
+# 0.6 + 0.3·score capped at 0.85; embedding similarity counts from 0.6 and is reported
+# as 0.5 + 0.3·score capped at 0.8.
+SUBSTRING_MATCH_CONFIDENCE = 0.9
+NLI_MATCH_THRESHOLD = 0.5
+NLI_CONFIDENCE_BASE = 0.6
+NLI_CONFIDENCE_CAP = 0.85
+EMBEDDING_MATCH_THRESHOLD = 0.6
+EMBEDDING_CONFIDENCE_BASE = 0.5
+EMBEDDING_CONFIDENCE_CAP = 0.8
+SCORE_WEIGHT = 0.3
+
 
 def _get_cross_encoder():
     """Lazy load NLI cross-encoder model."""
@@ -141,16 +153,16 @@ class GenerationEvaluator(GenerationEvaluatorHelpersMixin, BaseEvaluator):
             if text_norm == expected_norm:
                 return True, expected, 1.0
             if text_norm in expected_norm or expected_norm in text_norm:
-                return True, expected, 0.9
+                return True, expected, SUBSTRING_MATCH_CONFIDENCE
 
         for expected in expected_list:
             expected_str = str(expected)
             nli_score = self._nli_entailment(text, expected_str)
-            if nli_score is not None and nli_score >= 0.5:
-                confidence = min(0.85, 0.6 + nli_score * 0.3)
+            if nli_score is not None and nli_score >= NLI_MATCH_THRESHOLD:
+                confidence = min(NLI_CONFIDENCE_CAP, NLI_CONFIDENCE_BASE + nli_score * SCORE_WEIGHT)
                 return True, expected, confidence
             emb_score = self._embedding_similarity(text, expected_str)
-            if emb_score is not None and emb_score >= 0.6:
-                confidence = min(0.8, 0.5 + emb_score * 0.3)
+            if emb_score is not None and emb_score >= EMBEDDING_MATCH_THRESHOLD:
+                confidence = min(EMBEDDING_CONFIDENCE_CAP, EMBEDDING_CONFIDENCE_BASE + emb_score * SCORE_WEIGHT)
                 return True, expected, confidence
         return False, None, 0.0

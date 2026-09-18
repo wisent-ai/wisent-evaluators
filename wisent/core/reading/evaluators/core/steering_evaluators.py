@@ -17,9 +17,15 @@ from wisent.core.utils.config_tools.constants import (
 )
 
 # Re-export from helpers
-from wisent.core.reading.evaluators._steering_evaluators_helpers import PersonalizationEvaluator
+from wisent.core.reading.evaluators._steering_evaluators_helpers import (
+    MAX_EVAL_PROMPTS,
+    PersonalizationEvaluator,
+)
 
 logger = logging.getLogger(__name__)
+
+# A task evaluation trains on 80 % of the benchmark pairs and tests on the rest.
+TASK_SPLIT_RATIO = 0.8
 
 
 @dataclass
@@ -164,10 +170,10 @@ class RefusalEvaluator(BaseSteeringEvaluator):
                 custom_prompts = custom_prompts.get("prompts", [])
             self._prompt_objects = None
             return [p if isinstance(p, str) else p.get("prompt", str(p))
-                    for p in custom_prompts[:30]]
+                    for p in custom_prompts[:MAX_EVAL_PROMPTS]]
         else:
             topics = self.config.eval_topics.split(",") if self.config.eval_topics else None
-            prompt_objects = list(self.bench.prompts(topics=topics))[:30]
+            prompt_objects = list(self.bench.prompts(topics=topics))[:MAX_EVAL_PROMPTS]
             self._prompt_objects = prompt_objects
             return [p.prompt for p in prompt_objects]
 
@@ -224,7 +230,7 @@ class TaskEvaluator(BaseSteeringEvaluator):
 
         result = loader._load_one_task(
             task_name=self.config.task,
-            split_ratio=0.8, seed=DEFAULT_RANDOM_SEED,
+            split_ratio=TASK_SPLIT_RATIO, seed=DEFAULT_RANDOM_SEED,
             limit=None,
             training_limit=None,
             testing_limit=None,

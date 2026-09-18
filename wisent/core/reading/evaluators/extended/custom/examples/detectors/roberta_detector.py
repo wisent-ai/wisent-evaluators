@@ -17,6 +17,9 @@ from typing import Any, Dict, Optional
 
 from wisent.core.utils.config_tools.constants import HTTP_STATUS_SERVICE_UNAVAILABLE
 
+# An answer in no known shape is read as an even split.
+NEUTRAL_PROBABILITY = 0.5
+
 from wisent.core.reading.evaluators.custom.custom_evaluator import (
     CustomEvaluator,
     CustomEvaluatorConfig,
@@ -113,7 +116,7 @@ class RobertaDetectorEvaluator(CustomEvaluator):
                 "ai_prob": ai_prob,
             }
         
-        return {"human_prob": 0.5, "ai_prob": 0.5}
+        return {"human_prob": NEUTRAL_PROBABILITY, "ai_prob": NEUTRAL_PROBABILITY}
     
     def evaluate_response(self, response: str, **kwargs) -> Dict[str, Any]:
         """Evaluate response for AI detection."""

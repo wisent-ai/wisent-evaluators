@@ -19,6 +19,24 @@ if TYPE_CHECKING:
 # Global tokenizer cache
 _tokenizer_cache = {}
 
+# The heuristics' lines. Function-word ratio is judged from six tokens; a word is
+# nonsense when it fragments into more than one token per two characters over at
+# least four tokens; a text under ten characters is not judged at all; over fifty
+# characters with under 8 % spaces it is concatenated; over 10 % of tokens longer
+# than 25 characters is concatenated; a real word is at most 15 letters with a vowel;
+# under 30 % valid words or under 15 % function words is gibberish.
+MIN_TOKENS_FOR_FUNCTION_RATIO = 6
+NONSENSE_TOKENS_PER_CHAR = 0.5
+NONSENSE_MIN_SUBWORDS = 4
+MIN_TEXT_CHARS = 10
+SPACING_CHECK_MIN_CHARS = 50
+MIN_SPACE_RATIO = 0.08
+LONG_TOKEN_CHARS = 25
+MAX_LONG_TOKEN_RATIO = 0.1
+MAX_REAL_WORD_CHARS = 15
+MIN_VALID_WORD_RATIO = 0.3
+MIN_FUNCTION_WORD_RATIO = 0.15
+
 # Function words - the glue words of English that appear in natural text
 # Real sentences need these; gibberish often lacks them
 FUNCTION_WORDS = {
@@ -54,7 +72,7 @@ def _has_low_function_word_ratio(text: str, threshold: float = None) -> bool:
     if threshold is None:
         raise ValueError("threshold must be provided by caller")
     tokens = re.findall(r'\b\w+\b', text.lower())
-    if len(tokens) < 6:
+    if len(tokens) < MIN_TOKENS_FOR_FUNCTION_RATIO:
         return False  # Too short to judge
 
     function_count = sum(1 for t in tokens if t in FUNCTION_WORDS)
@@ -106,7 +124,7 @@ def _is_nonsense_word(word: str, tokenizer, *, nonsense_min_tokens: int) -> bool
     ratio = len(tokens) / len(word)
 
     # If more than 1 token per 2 characters AND at least 4 tokens, likely nonsense
-    if ratio > 0.5 and len(tokens) >= 4:
+    if ratio > NONSENSE_TOKENS_PER_CHAR and len(tokens) >= NONSENSE_MIN_SUBWORDS:
         return True
 
     return False
@@ -123,12 +141,12 @@ def _is_gibberish(text: str, *, nonsense_min_tokens: int) -> bool:
     - Repeated word fragments within tokens
     - Too few valid English words
     """
-    if not text or len(text.strip()) < 10:
+    if not text or len(text.strip()) < MIN_TEXT_CHARS:
         return False  # Too short to evaluate, let other checks handle
 
     # Check 1: Spacing ratio - normal English has ~15-20% spaces
     space_ratio = text.count(' ') / len(text)
-    if len(text) > 50 and space_ratio < 0.08:
+    if len(text) > SPACING_CHECK_MIN_CHARS and space_ratio < MIN_SPACE_RATIO:
         return True
 
     tokens = text.split()
@@ -136,8 +154,8 @@ def _is_gibberish(text: str, *, nonsense_min_tokens: int) -> bool:
         return False
 
     # Check 2: Long tokens (concatenated words)
-    long_tokens = sum(1 for t in tokens if len(t) > 25)
-    if long_tokens / len(tokens) > 0.1:
+    long_tokens = sum(1 for t in tokens if len(t) > LONG_TOKEN_CHARS)
+    if long_tokens / len(tokens) > MAX_LONG_TOKEN_RATIO:
         return True
 
     # Check 3: CamelCase patterns (e.g., "hisHandsThatDelight", "HewalksAway")
@@ -175,16 +193,16 @@ def _is_gibberish(text: str, *, nonsense_min_tokens: int) -> bool:
             # Token is valid if it's a common word OR has vowels and reasonable length
             if clean_token in common_words:
                 valid_count += 1
-            elif len(clean_token) <= 15 and re.search(r'[aeiou]', clean_token):
+            elif len(clean_token) <= MAX_REAL_WORD_CHARS and re.search(r'[aeiou]', clean_token):
                 valid_count += 1
 
         validity_ratio = valid_count / len(tokens)
-        if validity_ratio < 0.3:
+        if validity_ratio < MIN_VALID_WORD_RATIO:
             return True
 
     # Check 6: Function word ratio - real English has ~30-50% function words
     # Gibberish made of strung-together nouns/jargon has very few
-    if _has_low_function_word_ratio(text, threshold=0.15):
+    if _has_low_function_word_ratio(text, threshold=MIN_FUNCTION_WORD_RATIO):
         return True
 
     return False

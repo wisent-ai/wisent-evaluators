@@ -4,10 +4,10 @@ from typing import Union, Optional
 from math import isclose
 from word2number import w2n
 from wisent.core.utils.config_tools.constants import MATH_REL_TOL
-from wisent.core.reading.evaluators.benchmark_specific.math_parsing._scripts_constants import (
+from wisent.core.reading.evaluators.core.benchmark_specific.specialized.math_parsing.internals.parsing.constants import (
     unit_texts,
 )
-from wisent.core.reading.evaluators.benchmark_specific.math_parsing._core_parts._sympy_utils import PERCENT
+from wisent.core.reading.evaluators.core.benchmark_specific.specialized.math_parsing.public._core_parts._sympy_utils import PERCENT
 
 def numeric_equal(prediction: float, reference: float):
     # Note that relative tolerance has significant impact

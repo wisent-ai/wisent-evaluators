@@ -67,7 +67,7 @@ class PersonalizationEvaluator:
         quality_weight: float,
         alignment_weight: float,
     ):
-        from wisent.core.reading.evaluators.steering_evaluators import BaseSteeringEvaluator
+        from wisent.core.reading.evaluators.core.steering.evaluators import BaseSteeringEvaluator
         BaseSteeringEvaluator.__init__(self, config, model_name)
         self.wisent_model = wisent_model
         self.positive_examples = positive_examples or []

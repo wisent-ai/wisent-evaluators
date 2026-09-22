@@ -17,7 +17,7 @@ from wisent.core.utils.config_tools.constants import (
 )
 
 # Re-export from helpers
-from wisent.core.reading.evaluators._steering_evaluators_helpers import (
+from wisent.core.reading.evaluators.core.steering.helpers import (
     MAX_EVAL_PROMPTS,
     PersonalizationEvaluator,
 )

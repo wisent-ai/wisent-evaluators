@@ -7,19 +7,19 @@ import re
 from typing import Union, Optional, Any
 import regex
 from latex2sympy2_extended import latex2sympy
-from wisent.core.reading.evaluators.benchmark_specific.math_parsing.core import EvaluatorMath
+from wisent.core.reading.evaluators.core.benchmark_specific.specialized.math_parsing.public.core import EvaluatorMath
 import multiprocessing
 from math import isclose
 import time
 from word2number import w2n
 
-from wisent.core.reading.evaluators.benchmark_specific.math_parsing._scripts_constants import (
+from wisent.core.reading.evaluators.core.benchmark_specific.specialized.math_parsing.internals.parsing.constants import (
     MULTILINGUAL_ANSWER_REGEXES,
     MULTILINGUAL_ANSWER_PATTERN_TEMPLATE,
     STRIP_EXCEPTIONS,
     unit_texts,
 )
-from wisent.core.reading.evaluators.benchmark_specific.math_parsing._scripts_parsing import (
+from wisent.core.reading.evaluators.core.benchmark_specific.specialized.math_parsing.internals.parsing.parsing import (
     numeric_equal,
     parse_digits,
     is_digit,
@@ -32,16 +32,16 @@ from wisent.core.reading.evaluators.benchmark_specific.math_parsing._scripts_par
     str_to_pmatrix,
     choice_answer_clean,
 )
-from wisent.core.reading.evaluators.benchmark_specific.math_parsing._scripts_extraction import (
+from wisent.core.reading.evaluators.core.benchmark_specific.specialized.math_parsing.internals.parsing.extraction import (
     extract_answer,
     symbolic_equal,
     symbolic_equal_process,
     call_with_timeout,
 )
-from wisent.core.reading.evaluators.benchmark_specific.math_parsing._scripts_equality import (
+from wisent.core.reading.evaluators.core.benchmark_specific.specialized.math_parsing.internals.equality.equality import (
     math_equal,
 )
-from wisent.core.reading.evaluators.benchmark_specific.math_parsing._scripts_adapted import (
+from wisent.core.reading.evaluators.core.benchmark_specific.specialized.math_parsing.internals.equality.adapted import (
     AdaptedEvaluatorMath,
     multi_math_equal,
 )

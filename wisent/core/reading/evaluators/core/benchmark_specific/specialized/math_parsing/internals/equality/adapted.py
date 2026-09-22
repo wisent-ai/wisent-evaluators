@@ -2,20 +2,20 @@
 import re
 from typing import Any, Optional, List
 from sympy import simplify, N
-from wisent.core.reading.evaluators.benchmark_specific.math_parsing.core import EvaluatorMath
-from wisent.core.reading.evaluators.benchmark_specific.math_parsing._scripts_constants import (
+from wisent.core.reading.evaluators.core.benchmark_specific.specialized.math_parsing.public.core import EvaluatorMath
+from wisent.core.reading.evaluators.core.benchmark_specific.specialized.math_parsing.internals.parsing.constants import (
     MULTILINGUAL_ANSWER_REGEXES, MULTILINGUAL_ANSWER_PATTERN_TEMPLATE, STRIP_EXCEPTIONS,
 )
-from wisent.core.reading.evaluators.benchmark_specific.math_parsing._scripts_parsing import (
+from wisent.core.reading.evaluators.core.benchmark_specific.specialized.math_parsing.internals.parsing.parsing import (
     numeric_equal, normalize_extracted_answer, strip_string,
 )
-from wisent.core.reading.evaluators.benchmark_specific.math_parsing._scripts_extraction import (
+from wisent.core.reading.evaluators.core.benchmark_specific.specialized.math_parsing.internals.parsing.extraction import (
     extract_answer,
 )
-from wisent.core.reading.evaluators.benchmark_specific.math_parsing._scripts_equality import (
+from wisent.core.reading.evaluators.core.benchmark_specific.specialized.math_parsing.internals.equality.equality import (
     math_equal,
 )
-from wisent.core.reading.evaluators.benchmark_specific.math_parsing._core_parts._sympy_utils import PERCENT
+from wisent.core.reading.evaluators.core.benchmark_specific.specialized.math_parsing.public._core_parts._sympy_utils import PERCENT
 
 class AdaptedEvaluatorMath(EvaluatorMath):
     def is_num_eq(

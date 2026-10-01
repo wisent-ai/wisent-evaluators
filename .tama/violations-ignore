@@ -19,6 +19,6 @@ wisent/core/reading/evaluators/core/benchmark_specific/specialized/lm_eval_docke
 #
 # The repository root. Every file there is read by a tool at exactly that
 # path: pip reads pyproject.toml and setup.py, the release check reads
-# released-surface.json, the smoke test is invoked as smoke_test.py, GitHub
-# reads README.md and LICENSE. The product's own code lives under wisent/.
+# released-surface.json, GitHub reads README.md and LICENSE. The product's
+# own code lives under wisent/.
 .

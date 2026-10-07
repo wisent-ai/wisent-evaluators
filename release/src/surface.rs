@@ -41,7 +41,9 @@ fn string_literal(node: Node, source: &str) -> Option<String> {
     for child in node.children(&mut cursor) {
         match child.kind() {
             "string_start" => {
-                let prefix = text(child, source).trim_end_matches(['"', '\'']).to_ascii_lowercase();
+                let prefix = text(child, source)
+                    .trim_end_matches(['"', '\''])
+                    .to_ascii_lowercase();
                 if prefix.contains('b') || prefix.contains('f') || prefix.contains('t') {
                     return None;
                 }
@@ -68,24 +70,40 @@ fn base_name(node: Node, source: &str) -> String {
             .child_by_field_name("attribute")
             .map(|attribute| text(attribute, source).to_string())
             .unwrap_or_default(),
-        "subscript" => node.child_by_field_name("value").map(|value| base_name(value, source)).unwrap_or_default(),
+        "subscript" => node
+            .child_by_field_name("value")
+            .map(|value| base_name(value, source))
+            .unwrap_or_default(),
         _ => String::new(),
     }
 }
 
 /// The literal assigned to `name` in a class body; the last assignment wins.
 fn registered_name(class: Node, source: &str) -> String {
-    let Some(body) = class.child_by_field_name("body") else { return String::new() };
+    let Some(body) = class.child_by_field_name("body") else {
+        return String::new();
+    };
     let mut found = String::new();
     let mut cursor = body.walk();
-    for statement in body.named_children(&mut cursor).filter(|statement| statement.kind() == "expression_statement") {
+    for statement in body
+        .named_children(&mut cursor)
+        .filter(|statement| statement.kind() == "expression_statement")
+    {
         let mut inner = statement.walk();
-        for assignment in statement.named_children(&mut inner).filter(|node| node.kind() == "assignment") {
-            let Some(left) = assignment.child_by_field_name("left") else { continue };
+        for assignment in statement
+            .named_children(&mut inner)
+            .filter(|node| node.kind() == "assignment")
+        {
+            let Some(left) = assignment.child_by_field_name("left") else {
+                continue;
+            };
             if left.kind() != "identifier" || text(left, source) != NAME_ATTRIBUTE {
                 continue;
             }
-            if let Some(value) = assignment.child_by_field_name("right").and_then(|value| string_literal(value, source)) {
+            if let Some(value) = assignment
+                .child_by_field_name("right")
+                .and_then(|value| string_literal(value, source))
+            {
                 found = value;
             }
         }
@@ -95,7 +113,8 @@ fn registered_name(class: Node, source: &str) -> String {
 
 /// Every class in one module; a module that does not parse is a refusal.
 fn classes(path: &Path) -> Result<Vec<Class>, String> {
-    let source = std::fs::read_to_string(path).map_err(|error| format!("{}: {error}", path.display()))?;
+    let source =
+        std::fs::read_to_string(path).map_err(|error| format!("{}: {error}", path.display()))?;
     let mut parser = Parser::new();
     parser
         .set_language(&tree_sitter_python::LANGUAGE.into())
@@ -103,7 +122,12 @@ fn classes(path: &Path) -> Result<Vec<Class>, String> {
     let tree = parser
         .parse(&source, None)
         .filter(|tree| !tree.root_node().has_error())
-        .ok_or_else(|| format!("{}: does not parse, so the surface is unknown", path.display()))?;
+        .ok_or_else(|| {
+            format!(
+                "{}: does not parse, so the surface is unknown",
+                path.display()
+            )
+        })?;
     let mut found = Vec::new();
     let mut pending = vec![tree.root_node()];
     while let Some(node) = pending.pop() {
@@ -112,7 +136,9 @@ fn classes(path: &Path) -> Result<Vec<Class>, String> {
         if node.kind() != "class_definition" {
             continue;
         }
-        let Some(name) = node.child_by_field_name("name") else { continue };
+        let Some(name) = node.child_by_field_name("name") else {
+            continue;
+        };
         let mut bases = Vec::new();
         if let Some(arguments) = node.child_by_field_name("superclasses") {
             let mut inner = arguments.walk();
@@ -123,15 +149,22 @@ fn classes(path: &Path) -> Result<Vec<Class>, String> {
                     .filter(|base| !base.is_empty()),
             );
         }
-        found.push(Class { name: text(name, &source).to_string(), bases, registered: registered_name(node, &source) });
+        found.push(Class {
+            name: text(name, &source).to_string(),
+            bases,
+            registered: registered_name(node, &source),
+        });
     }
     Ok(found)
 }
 
 fn python_files(directory: &Path, found: &mut Vec<PathBuf>) -> Result<(), String> {
-    let entries = std::fs::read_dir(directory).map_err(|error| format!("{}: {error}", directory.display()))?;
+    let entries = std::fs::read_dir(directory)
+        .map_err(|error| format!("{}: {error}", directory.display()))?;
     for entry in entries {
-        let path = entry.map_err(|error| format!("{}: {error}", directory.display()))?.path();
+        let path = entry
+            .map_err(|error| format!("{}: {error}", directory.display()))?
+            .path();
         if path.is_dir() {
             python_files(&path, found)?;
         } else if path.extension().is_some_and(|extension| extension == "py") {
@@ -145,7 +178,11 @@ fn python_files(directory: &Path, found: &mut Vec<PathBuf>) -> Result<(), String
 pub fn surface(root: &Path, tolerant: bool) -> Result<(Vec<String>, Vec<String>), String> {
     let package = root.join("wisent");
     if !package.is_dir() {
-        return Err(format!("{} is not a directory; is {} the repository root?", package.display(), root.display()));
+        return Err(format!(
+            "{} is not a directory; is {} the repository root?",
+            package.display(),
+            root.display()
+        ));
     }
     let mut files = Vec::new();
     python_files(&package, &mut files)?;
@@ -155,7 +192,12 @@ pub fn surface(root: &Path, tolerant: bool) -> Result<(Vec<String>, Vec<String>)
     for path in files {
         match classes(&path) {
             Ok(found) => declared.extend(found),
-            Err(_) if tolerant => skipped.push(path.strip_prefix(root).unwrap_or(&path).display().to_string()),
+            Err(_) if tolerant => skipped.push(
+                path.strip_prefix(root)
+                    .unwrap_or(&path)
+                    .display()
+                    .to_string(),
+            ),
             Err(refusal) => return Err(refusal),
         }
     }
@@ -173,7 +215,10 @@ pub fn surface(root: &Path, tolerant: bool) -> Result<(Vec<String>, Vec<String>)
     }
     let mut names = BTreeSet::new();
     let mut anonymous = BTreeSet::new();
-    for class in declared.iter().filter(|class| class.name != ROOT_CLASS && evaluators.contains(&class.name)) {
+    for class in declared
+        .iter()
+        .filter(|class| class.name != ROOT_CLASS && evaluators.contains(&class.name))
+    {
         if class.registered.is_empty() {
             anonymous.insert(class.name.clone());
         } else {

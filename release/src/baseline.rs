@@ -21,9 +21,14 @@ const WHEEL_MARKER: &str = "pypi-wheel";
 const PURE_PYTHON_WHEEL: &str = "-py3-none-any.whl";
 
 fn fetch(url: &str) -> Result<Vec<u8>, String> {
-    let response = ureq::get(url).call().map_err(|error| format!("{url}: {error}"))?;
+    let response = ureq::get(url)
+        .call()
+        .map_err(|error| format!("{url}: {error}"))?;
     let mut body = Vec::new();
-    response.into_reader().read_to_end(&mut body).map_err(|error| format!("{url}: {error}"))?;
+    response
+        .into_reader()
+        .read_to_end(&mut body)
+        .map_err(|error| format!("{url}: {error}"))?;
     Ok(body)
 }
 
@@ -62,7 +67,11 @@ fn artifact(version: &str) -> Result<(&'static str, Value), String> {
 /// Unpack an artifact into `scratch` and return the root that holds `wisent/`.
 fn unpack(marker: &str, entry: &Value, scratch: &Path) -> Result<PathBuf, String> {
     let filename = entry["filename"].as_str().unwrap_or_default();
-    let payload = fetch(entry["url"].as_str().ok_or_else(|| format!("{filename} names no url"))?)?;
+    let payload = fetch(
+        entry["url"]
+            .as_str()
+            .ok_or_else(|| format!("{filename} names no url"))?,
+    )?;
     if marker == SDIST_MARKER {
         tar::Archive::new(flate2::read::GzDecoder::new(payload.as_slice()))
             .unpack(scratch)
@@ -82,15 +91,23 @@ fn unpack(marker: &str, entry: &Value, scratch: &Path) -> Result<PathBuf, String
         .collect();
     match inner.as_slice() {
         [root] => Ok(root.clone()),
-        _ => Err(format!("{filename}: expected exactly one tree containing `wisent`, found {}", inner.len())),
+        _ => Err(format!(
+            "{filename}: expected exactly one tree containing `wisent`, found {}",
+            inner.len()
+        )),
     }
 }
 
 /// The surface of one published artifact, read tolerantly: a module in it that
 /// does not parse could not be imported by whoever installed it either.
-fn recover(marker: &str, entry: &Value, scratch: &Path) -> Result<(Vec<String>, Vec<String>), String> {
+fn recover(
+    marker: &str,
+    entry: &Value,
+    scratch: &Path,
+) -> Result<(Vec<String>, Vec<String>), String> {
     if scratch.exists() {
-        std::fs::remove_dir_all(scratch).map_err(|error| format!("{}: {error}", scratch.display()))?;
+        std::fs::remove_dir_all(scratch)
+            .map_err(|error| format!("{}: {error}", scratch.display()))?;
     }
     std::fs::create_dir_all(scratch).map_err(|error| format!("{}: {error}", scratch.display()))?;
     let read = unpack(marker, entry, scratch).and_then(|root| surface(&root, true));
@@ -102,7 +119,10 @@ fn recover(marker: &str, entry: &Value, scratch: &Path) -> Result<(Vec<String>, 
 
 fn cross_check(version: &str, scratch: &Path) -> Result<(), String> {
     let found = candidates(version)?;
-    let missing: Vec<&str> = [SDIST_MARKER, WHEEL_MARKER].into_iter().filter(|marker| !found.contains_key(*marker)).collect();
+    let missing: Vec<&str> = [SDIST_MARKER, WHEEL_MARKER]
+        .into_iter()
+        .filter(|marker| !found.contains_key(*marker))
+        .collect();
     if !missing.is_empty() {
         return Err(format!(
             "{PROJECT} {version} publishes no {}, so the two readers cannot be compared on it; pick a version that has both",
@@ -116,19 +136,37 @@ fn cross_check(version: &str, scratch: &Path) -> Result<(), String> {
             Ok((names, _)) => {
                 surfaces.insert(marker.clone(), json!(names));
             }
-            Err(why) => refused.push(format!("{marker} {}: {why}", entry["filename"].as_str().unwrap_or_default())),
+            Err(why) => refused.push(format!(
+                "{marker} {}: {why}",
+                entry["filename"].as_str().unwrap_or_default()
+            )),
         }
     }
     if !refused.is_empty() {
         refused.sort();
-        return Err(format!("cannot compare the readers on {PROJECT} {version}; {}", refused.join("; ")));
+        return Err(format!(
+            "cannot compare the readers on {PROJECT} {version}; {}",
+            refused.join("; ")
+        ));
     }
     let names = |marker: &str| -> Vec<String> {
-        surfaces[marker].as_array().into_iter().flatten().filter_map(Value::as_str).map(str::to_string).collect()
+        surfaces[marker]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .map(str::to_string)
+            .collect()
     };
     let (from_sdist, from_wheel) = (names(SDIST_MARKER), names(WHEEL_MARKER));
-    let only_sdist: Vec<&String> = from_sdist.iter().filter(|name| !from_wheel.contains(name)).collect();
-    let only_wheel: Vec<&String> = from_wheel.iter().filter(|name| !from_sdist.contains(name)).collect();
+    let only_sdist: Vec<&String> = from_sdist
+        .iter()
+        .filter(|name| !from_wheel.contains(name))
+        .collect();
+    let only_wheel: Vec<&String> = from_wheel
+        .iter()
+        .filter(|name| !from_sdist.contains(name))
+        .collect();
     if !only_sdist.is_empty() || !only_wheel.is_empty() {
         return Err(format!(
             "the two readers disagree on {PROJECT} {version}: sdist only {only_sdist:?}, wheel only {only_wheel:?}. \
@@ -147,7 +185,10 @@ fn cross_check(version: &str, scratch: &Path) -> Result<(), String> {
 /// What PyPI serves now: (version, marker, entry, source string). No download.
 fn identity() -> Result<(String, &'static str, Value, String), String> {
     let published = json_at(&format!("https://pypi.org/pypi/{PROJECT}/json"))?;
-    let version = published["info"]["version"].as_str().ok_or("PyPI names no info.version")?.to_string();
+    let version = published["info"]["version"]
+        .as_str()
+        .ok_or("PyPI names no info.version")?
+        .to_string();
     let (marker, entry) = artifact(&version)?;
     let mut tail = format!(
         "{} unpacked and read by wisent-evaluators-release surface",
@@ -163,11 +204,16 @@ fn identity() -> Result<(String, &'static str, Value, String), String> {
 pub fn run(repository: &Path, scratch: &Path, flags: &[String]) -> Result<(), String> {
     match flags {
         [flag, version] if flag == "--cross-check" => return cross_check(version, scratch),
-        [flag] if flag == "--cross-check" => return Err("--cross-check needs the version to compare the readers on".to_string()),
+        [flag] if flag == "--cross-check" => {
+            return Err("--cross-check needs the version to compare the readers on".to_string())
+        }
         [flag] if flag == "--best" => {
             let (version, _, _, source) = identity()?;
             let document = json!({ "version": version, "source": source });
-            println!("{}", serde_json::to_string_pretty(&document).map_err(|error| error.to_string())?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&document).map_err(|error| error.to_string())?
+            );
             return Ok(());
         }
         [] => {}
@@ -183,8 +229,12 @@ pub fn run(repository: &Path, scratch: &Path, flags: &[String]) -> Result<(), St
         document.insert("unparseable".to_string(), json!(skipped));
     }
     let path = repository.join("released-surface.json");
-    let rendered = serde_json::to_string_pretty(&document).map_err(|error| error.to_string())? + "\n";
+    let rendered =
+        serde_json::to_string_pretty(&document).map_err(|error| error.to_string())? + "\n";
     std::fs::write(&path, rendered).map_err(|error| format!("{}: {error}", path.display()))?;
-    println!("released-surface.json: {marker} {version}, {} names", names.len());
+    println!(
+        "released-surface.json: {marker} {version}, {} names",
+        names.len()
+    );
     Ok(())
 }

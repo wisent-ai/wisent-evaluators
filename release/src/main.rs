@@ -20,7 +20,10 @@ fn print_surface(root: &Path, tolerant: bool) -> Result<(), String> {
     if !skipped.is_empty() {
         document.insert("unparseable".to_string(), serde_json::json!(skipped));
     }
-    println!("{}", serde_json::to_string_pretty(&document).map_err(|error| error.to_string())?);
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&document).map_err(|error| error.to_string())?
+    );
     Ok(())
 }
 
@@ -38,7 +41,9 @@ fn main() -> ExitCode {
                 .unwrap_or_else(|| repository.clone());
             print_surface(&root, rest.iter().any(|argument| argument == "--tolerant"))
         }
-        Some((command, rest)) if command == "baseline" => baseline::run(&repository, &scratch, rest),
+        Some((command, rest)) if command == "baseline" => {
+            baseline::run(&repository, &scratch, rest)
+        }
         _ => {
             eprintln!("{USAGE}");
             return ExitCode::from(2);

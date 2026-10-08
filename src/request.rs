@@ -103,6 +103,15 @@ impl Options<'_> {
         }
     }
 
+    /// A number that turns on a comparison the evaluator otherwise does not
+    /// make: `None` when the request leaves it out.
+    pub fn opt_in_number(&self, name: &str) -> Result<Option<f64>> {
+        match self.values.get(name) {
+            Some(_) => self.number(name).map(Some),
+            None => Ok(None),
+        }
+    }
+
     /// A text the evaluator needs, such as the judge's Brama route.
     pub fn text(&self, name: &str) -> Result<&str> {
         match self.values.get(name) {

@@ -14,6 +14,8 @@
 
 use std::num::NonZeroUsize;
 
+pub mod value;
+
 const BOXED: &str = "\\boxed{";
 
 /// The content of the last `\boxed{…}` in `text`, braces nested inside it

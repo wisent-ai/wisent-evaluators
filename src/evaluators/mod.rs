@@ -5,6 +5,7 @@ use anyhow::{bail, Result};
 use crate::{Evaluation, Request};
 
 mod choice;
+mod code;
 mod generation;
 mod judged;
 mod label;
@@ -36,6 +37,8 @@ static CODED: &[&dyn Evaluator] = &[
     &choice::Choice,
     &overlap::darija::DarijaBench,
     &overlap::conala::Conala,
+    &overlap::nl2bash::Nl2Bash,
+    &code::CodeTests,
     &similarity::Generation,
     &math::MathAnswer,
     &math::Aime,

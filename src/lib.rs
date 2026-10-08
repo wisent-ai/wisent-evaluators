@@ -14,6 +14,7 @@ pub mod math;
 pub mod metrics;
 pub mod request;
 pub mod result;
+pub mod sandbox;
 pub mod text;
 
 pub use evaluators::{named, registered, Evaluator};

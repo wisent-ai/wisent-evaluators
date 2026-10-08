@@ -24,6 +24,10 @@ pub struct Request {
     /// (TruthfulQA's incorrect answers).
     #[serde(default)]
     pub incorrect: Vec<String>,
+    /// The benchmark's test program for a code answer: Python that imports
+    /// the answer from `solution` and fails when it is wrong.
+    #[serde(default)]
+    pub tests: Option<String>,
     /// The evaluator's options, by name.
     #[serde(default)]
     pub options: Map<String, Value>,
@@ -108,6 +112,26 @@ impl Options<'_> {
     pub fn opt_in_number(&self, name: &str) -> Result<Option<f64>> {
         match self.values.get(name) {
             Some(_) => self.number(name).map(Some),
+            None => Ok(None),
+        }
+    }
+
+    /// A whole, positive quantity the evaluator needs (a limit, a count).
+    pub fn count(&self, name: &str) -> Result<u64> {
+        let number = self.number(name)?;
+        match std::num::NonZeroU64::new(number as u64) {
+            Some(count) if count.get() as f64 == number => Ok(count.get()),
+            _ => bail!(
+                "{} reads options.{name} as a whole number above zero, and the request states {number}",
+                self.evaluator
+            ),
+        }
+    }
+
+    /// A text the evaluator uses only when the request states it.
+    pub fn opt_in_text(&self, name: &str) -> Result<Option<&str>> {
+        match self.values.get(name) {
+            Some(_) => self.text(name).map(Some),
             None => Ok(None),
         }
     }

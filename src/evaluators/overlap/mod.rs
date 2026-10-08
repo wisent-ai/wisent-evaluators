@@ -1,5 +1,5 @@
 //! Evaluators that score the response's overlap with a reference text
-//! (BLEU over words, code tokens or characters; ROUGE-L) and read the
+//! (BLEU over words, code tokens or characters; ROUGE-L; METEOR) and read the
 //! verdict from the caller's threshold.
 
 use anyhow::Result;
@@ -9,6 +9,7 @@ use crate::{Evaluation, Request, Verdict};
 
 pub(in crate::evaluators) mod conala;
 pub(in crate::evaluators) mod darija;
+pub(in crate::evaluators) mod longform;
 pub(in crate::evaluators) mod nl2bash;
 
 const THRESHOLD: (&str, &str) = (

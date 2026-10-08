@@ -38,6 +38,7 @@ static CODED: &[&dyn Evaluator] = &[
     &overlap::darija::DarijaBench,
     &overlap::conala::Conala,
     &overlap::nl2bash::Nl2Bash,
+    &overlap::longform::Longform,
     &code::CodeTests,
     &similarity::Generation,
     &math::MathAnswer,

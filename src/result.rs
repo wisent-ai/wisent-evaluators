@@ -14,6 +14,25 @@ pub enum Verdict {
     Unknown,
 }
 
+impl Verdict {
+    /// Which of a contrastive pair's two choices holds the expected answer:
+    /// the correct choice alone is truthful, the incorrect one alone
+    /// untruthful, both or neither undecided.
+    pub fn contrast(correct: bool, incorrect: bool) -> Self {
+        match (correct, incorrect) {
+            (true, false) => Self::Truthful,
+            (false, true) => Self::Untruthful,
+            _ => Self::Unknown,
+        }
+    }
+
+    /// Which of a contrastive pair's two choices scores higher against the
+    /// expected answer; a tie is undecided.
+    pub fn higher(correct: f64, incorrect: f64) -> Self {
+        Self::contrast(correct > incorrect, incorrect > correct)
+    }
+}
+
 /// One evaluated response.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Evaluation {

@@ -1,7 +1,8 @@
 //! `f1`: token-overlap F1 between the response and the best-matching
-//! acceptable answer (DROP, SQuAD), or, with two choices, which choice the
-//! expected answer overlaps.
+//! acceptable answer (DROP, SQuAD, MLQA), or, with two choices, which choice
+//! the expected answer overlaps.
 
+use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 
 use anyhow::Result;
@@ -113,13 +114,31 @@ fn best_f1<'a>(text: &str, answers: &'a [String], raw: bool) -> Option<(f64, &'a
         })
 }
 
-/// The F1 of two texts' token sets, `None` when they share no token. For
-/// sets the harmonic mean of precision and recall is twice the shared tokens
-/// over both sizes.
+/// The F1 of two texts' word bags, `None` when they share no word. SQuAD's
+/// definition: a word both texts hold k times is shared k times, so the
+/// harmonic mean of precision and recall is twice the shared words over both
+/// lengths.
 fn f1(response: &str, expected: &str, raw: bool) -> Option<f64> {
-    let (response, expected) = (text::tokens(response, raw), text::tokens(expected, raw));
-    let shared = NonZeroUsize::new(response.intersection(&expected).count())?.get() as f64;
+    let (response, expected) = (text::words(response, raw), text::words(expected, raw));
+    let mut unmatched: BTreeMap<&str, usize> = BTreeMap::new();
+    for word in &expected {
+        *unmatched.entry(word.as_str()).or_default() += NonZeroUsize::MIN.get();
+    }
+    let shared = response
+        .iter()
+        .filter(|word| match unmatched.get_mut(word.as_str()) {
+            Some(left) => match NonZeroUsize::new(*left) {
+                Some(count) => {
+                    *left = count.get() - NonZeroUsize::MIN.get();
+                    true
+                }
+                None => false,
+            },
+            None => false,
+        })
+        .count();
+    let shared = NonZeroUsize::new(shared)?.get() as f64;
     let both = (response.len() + expected.len()) as f64;
-    // https://en.wikipedia.org/wiki/F-score
+    // https://rajpurkar.github.io/SQuAD-explorer/ (evaluate-v2.0.py, compute_f1)
     Some(2.0 * shared / both)
 }

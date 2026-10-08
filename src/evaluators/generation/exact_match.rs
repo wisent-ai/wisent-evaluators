@@ -1,5 +1,6 @@
 //! `exact_match`: the response equals one of the acceptable answers (GSM8K's
-//! final number, TriviaQA's aliases).
+//! final number, TriviaQA's aliases, LAMBADA's last word), or, with two
+//! choices, which choice equals one (Okapi TruthfulQA).
 
 use anyhow::Result;
 use serde_json::{Map, Value};
@@ -16,7 +17,7 @@ impl crate::Evaluator for ExactMatch {
     }
 
     fn description(&self) -> &'static str {
-        "The response equals one of the acceptable answers, compared after lenient normalization unless options.raw"
+        "The response equals one of the acceptable answers, compared after lenient normalization unless options.raw; with two choices, which choice equals one"
     }
 
     fn options(&self) -> &'static [(&'static str, &'static str)] {
@@ -46,10 +47,38 @@ impl crate::Evaluator for ExactMatch {
         };
         let response = prepare(&request.response);
         let answers = request.expected.answers();
-        let matched = answers.iter().find(|answer| prepare(answer) == response);
         let mut meta = Map::new();
         meta.insert("raw".into(), Value::Bool(raw));
         meta.insert("case_sensitive".into(), Value::Bool(case_sensitive));
+        if let [correct, incorrect] = request.choices.as_slice() {
+            let holds = |choice: &str| {
+                let choice = prepare(choice);
+                answers.iter().any(|answer| prepare(answer) == choice)
+            };
+            let (correct_holds, incorrect_holds) = (holds(correct), holds(incorrect));
+            meta.insert("correct_matches".into(), Value::Bool(correct_holds));
+            meta.insert("incorrect_matches".into(), Value::Bool(incorrect_holds));
+            return Ok(Evaluation {
+                evaluator: NAME,
+                verdict: Verdict::contrast(correct_holds, incorrect_holds),
+                score: None,
+                details: format!(
+                    "the correct choice {} and the incorrect choice {} an acceptable answer",
+                    if correct_holds {
+                        "equals"
+                    } else {
+                        "does not equal"
+                    },
+                    if incorrect_holds {
+                        "equals"
+                    } else {
+                        "does not equal"
+                    }
+                ),
+                meta,
+            });
+        }
+        let matched = answers.iter().find(|answer| prepare(answer) == response);
         Ok(match matched {
             Some(answer) => {
                 meta.insert("matched_answer".into(), Value::from(answer.as_str()));

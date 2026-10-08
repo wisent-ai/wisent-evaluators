@@ -21,13 +21,18 @@ pub fn normalize(text: &str) -> String {
     WHITESPACE.replace_all(&spaced, " ").trim().to_owned()
 }
 
-/// The distinct whitespace-separated tokens of `text`, normalized first
-/// unless `raw`.
-pub fn tokens(text: &str, raw: bool) -> BTreeSet<String> {
+/// The whitespace-separated words of `text` in order, repeats kept,
+/// normalized first unless `raw`.
+pub fn words(text: &str, raw: bool) -> Vec<String> {
     let text = if raw {
         text.to_owned()
     } else {
         normalize(text)
     };
     text.split_whitespace().map(str::to_owned).collect()
+}
+
+/// The distinct words of `text`, normalized first unless `raw`.
+pub fn tokens(text: &str, raw: bool) -> BTreeSet<String> {
+    words(text, raw).into_iter().collect()
 }

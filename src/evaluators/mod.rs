@@ -4,10 +4,12 @@ use anyhow::{bail, Result};
 
 use crate::{Evaluation, Request};
 
+mod choice;
 mod generation;
 mod judged;
 mod label;
 mod math;
+mod overlap;
 mod tools;
 
 /// One way of scoring a response.
@@ -30,6 +32,9 @@ static CODED: &[&dyn Evaluator] = &[
     &generation::tag::Tag,
     &tools::Bfcl,
     &label::UserSpecified,
+    &choice::Choice,
+    &overlap::darija::DarijaBench,
+    &overlap::conala::Conala,
     &math::MathAnswer,
     &math::Aime,
 ];

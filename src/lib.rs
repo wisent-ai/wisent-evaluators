@@ -11,6 +11,7 @@
 pub mod evaluators;
 pub mod judge;
 pub mod math;
+pub mod metrics;
 pub mod request;
 pub mod result;
 pub mod text;

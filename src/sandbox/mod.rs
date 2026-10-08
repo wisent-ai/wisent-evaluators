@@ -5,9 +5,10 @@
 //! The files travel as a tar archive on the container's standard input and
 //! are unpacked into a memory-backed `/work`, so nothing is written on the
 //! host. The image needs `sh`, `tar` and the interpreter the caller names.
-//! A run ends when its program does or when it spends its processor time;
-//! there is no wall-clock limit, so a program that waits without computing
-//! holds its evaluation.
+//! Each resource limit applies when the request states it and is Docker's
+//! own (none) when it does not. A run ends when its program does or when it
+//! spends the processor time it was given; there is no wall-clock limit, so
+//! a program that waits without computing holds its evaluation.
 
 use std::io::Write;
 use std::process::{Command, Stdio};
@@ -50,20 +51,20 @@ pub const OPTIONS: &[(&str, &str)] = &[
     ),
     (
         "cpu_seconds",
-        "the processor time the run may spend before it is killed; required",
+        "when stated, the processor time the run may spend before it is killed",
     ),
-    ("memory_bytes", "the container's memory limit; required"),
+    ("memory_bytes", "when stated, the container's memory limit"),
     (
         "file_size_bytes",
-        "the largest file the run may write; required",
+        "when stated, the largest file the run may write",
     ),
     (
         "processes",
-        "the most processes the container may hold; required",
+        "when stated, the most processes the container may hold",
     ),
     (
         "open_files",
-        "the most files a process may hold open; required",
+        "when stated, the most files a process may hold open",
     ),
 ];
 
@@ -99,11 +100,6 @@ pub fn run(options: &Options<'_>, files: &[(&str, &str)], program: &str) -> Resu
     let image = options.text("image")?;
     let interpreter = options.text("interpreter")?;
     let runtime = options.opt_in_text("runtime")?;
-    let cpu = options.count("cpu_seconds")?;
-    let memory = options.count("memory_bytes")?;
-    let file_size = options.count("file_size_bytes")?;
-    let processes = options.count("processes")?;
-    let open_files = options.count("open_files")?;
     let archive = archive(files)?;
     let mut command = Command::new("docker");
     command.arg("run");
@@ -113,12 +109,23 @@ pub fn run(options: &Options<'_>, files: &[(&str, &str)], program: &str) -> Resu
     command
         .args(["-i", "--rm", "--name", &container_name()?])
         .args(["--network=none", "--read-only", "--cap-drop=ALL"])
-        .arg("--security-opt=no-new-privileges")
-        .arg(format!("--pids-limit={processes}"))
-        .arg(format!("--memory={memory}"))
-        .args(["--ulimit", &format!("cpu={cpu}:{cpu}")])
-        .args(["--ulimit", &format!("fsize={file_size}:{file_size}")])
-        .args(["--ulimit", &format!("nofile={open_files}:{open_files}")])
+        .arg("--security-opt=no-new-privileges");
+    if let Some(processes) = options.opt_in_count("processes")? {
+        command.arg(format!("--pids-limit={processes}"));
+    }
+    if let Some(memory) = options.opt_in_count("memory_bytes")? {
+        command.arg(format!("--memory={memory}"));
+    }
+    for (option, limit) in [
+        ("cpu_seconds", "cpu"),
+        ("file_size_bytes", "fsize"),
+        ("open_files", "nofile"),
+    ] {
+        if let Some(value) = options.opt_in_count(option)? {
+            command.args(["--ulimit", &format!("{limit}={value}:{value}")]);
+        }
+    }
+    command
         .args(["--tmpfs", "/work:exec", "--tmpfs", "/tmp:exec"])
         .args(["--workdir", "/work", image, "sh", "-c"])
         .arg(format!(

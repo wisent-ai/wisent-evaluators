@@ -116,11 +116,14 @@ impl Options<'_> {
         }
     }
 
-    /// A whole, positive quantity the evaluator needs (a limit, a count).
-    pub fn count(&self, name: &str) -> Result<u64> {
-        let number = self.number(name)?;
+    /// A whole, positive quantity (a limit) the evaluator applies only when
+    /// the request states it.
+    pub fn opt_in_count(&self, name: &str) -> Result<Option<u64>> {
+        let Some(number) = self.opt_in_number(name)? else {
+            return Ok(None);
+        };
         match std::num::NonZeroU64::new(number as u64) {
-            Some(count) if count.get() as f64 == number => Ok(count.get()),
+            Some(count) if count.get() as f64 == number => Ok(Some(count.get())),
             _ => bail!(
                 "{} reads options.{name} as a whole number above zero, and the request states {number}",
                 self.evaluator

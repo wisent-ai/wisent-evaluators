@@ -6,11 +6,11 @@ use serde_json::{Map, Value};
 
 use crate::{text, Evaluation, Request, Verdict};
 
-pub(super) struct ExactMatch;
+pub(in crate::evaluators) struct ExactMatch;
 
 const NAME: &str = "exact_match";
 
-impl super::Evaluator for ExactMatch {
+impl crate::Evaluator for ExactMatch {
     fn name(&self) -> &'static str {
         NAME
     }

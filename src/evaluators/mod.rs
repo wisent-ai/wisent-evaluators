@@ -4,8 +4,8 @@ use anyhow::{bail, Result};
 
 use crate::{Evaluation, Request};
 
-mod exact_match;
-mod f1;
+mod generation;
+mod math;
 
 /// One way of scoring a response.
 pub trait Evaluator: Sync {
@@ -18,7 +18,12 @@ pub trait Evaluator: Sync {
     fn evaluate(&self, request: &Request) -> Result<Evaluation>;
 }
 
-static REGISTERED: &[&dyn Evaluator] = &[&exact_match::ExactMatch, &f1::F1];
+static REGISTERED: &[&dyn Evaluator] = &[
+    &generation::exact_match::ExactMatch,
+    &generation::f1::F1,
+    &math::MathAnswer,
+    &math::Aime,
+];
 
 /// Every evaluator, ordered by name.
 pub fn registered() -> Vec<&'static dyn Evaluator> {

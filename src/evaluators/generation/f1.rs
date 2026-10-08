@@ -9,11 +9,11 @@ use serde_json::{Map, Value};
 
 use crate::{text, Evaluation, Request, Verdict};
 
-pub(super) struct F1;
+pub(in crate::evaluators) struct F1;
 
 const NAME: &str = "f1";
 
-impl super::Evaluator for F1 {
+impl crate::Evaluator for F1 {
     fn name(&self) -> &'static str {
         NAME
     }

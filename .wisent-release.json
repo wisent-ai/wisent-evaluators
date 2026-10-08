@@ -4,37 +4,35 @@
   "releases": true,
   "version_source": {
     "kind": "regex",
-    "path": "setup.py",
-    "pattern": "(?m)^\\s*version\\s*=\\s*[\\\"'](?P<version>[0-9A-Za-z._-]+)[\\\"']"
+    "path": "Cargo.toml",
+    "pattern": "(?m)^version\\s*=\\s*\"(?P<version>\\d+\\.\\d+\\.\\d+)\"\\s*$"
   },
   "platforms": {
-    "python": {
-      "runner_platform": "linux-amd64",
-      "quality": [{"name": "fmt", "argv": ["cargo", "fmt", "--", "--check"]}],
+    "darwin-arm64": {
+      "runner_platform": "darwin-arm64",
+      "quality": [{"name": "fmt", "argv": ["cargo", "fmt", "--all", "--", "--check"]}],
       "build": {
-        "argv": ["stado", "product", "python", "build"]
+        "argv": ["stado", "product", "cargo", "stage", "--bin", "wisent-evaluators"]
       },
       "stage": {
-        "release/python-distributions.tar": "release/python-distributions.tar"
+        "wisent-evaluators": "bin/wisent-evaluators"
+      }
+    },
+    "linux-amd64": {
+      "runner_platform": "linux-amd64",
+      "quality": [{"name": "fmt", "argv": ["cargo", "fmt", "--all", "--", "--check"]}],
+      "build": {
+        "argv": ["stado", "product", "cargo", "stage", "--bin", "wisent-evaluators"]
+      },
+      "stage": {
+        "wisent-evaluators": "bin/wisent-evaluators"
       }
     }
   },
   "promotion": {
-    "channels": [
-      "stable"
-    ],
+    "channels": ["stable"],
     "reconcile": false
   },
   "inputs": {},
-  "deliveries": [
-    {
-      "name": "pypi",
-      "platform": "python",
-      "argv": ["stado", "product", "python", "deliver-pypi"],
-      "required": true,
-      "secret_env": {
-        "PYPI_TOKEN": "pypi#token"
-      }
-    }
-  ]
+  "deliveries": []
 }

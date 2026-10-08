@@ -1,30 +1,27 @@
-//! The release contract of the evaluator names the Python package still
-//! publishes while its evaluators move to this program: `surface [ROOT]
-//! [--tolerant]` prints the names the package registers; `baseline [--best |
-//! --cross-check VERSION]` rewrites `released-surface.json` from PyPI, prints
-//! only what PyPI serves now, or compares the sdist and wheel readers.
+//! The release contract of the evaluator names: `surface` prints the names
+//! this program's registry offers, the candidate a release is judged by;
+//! `baseline [--best | --cross-check VERSION]` rewrites
+//! `released-surface.json` from the release PyPI serves, prints only what
+//! PyPI serves now, or compares the sdist and wheel readers. The released
+//! artifact is the Python package, so its names are read from its source
+//! with a parser.
 
 mod baseline;
 mod surface;
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// The repository this program was built from.
 fn repository() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
-pub fn print_surface(root: Option<&Path>, tolerant: bool) -> Result<(), String> {
-    let root = match root {
-        Some(root) => root.to_path_buf(),
-        None => repository(),
-    };
-    let (names, skipped) = surface::surface(&root, tolerant)?;
-    let mut document = serde_json::Map::new();
-    document.insert("surface".to_string(), serde_json::json!(names));
-    if !skipped.is_empty() {
-        document.insert("unparseable".to_string(), serde_json::json!(skipped));
-    }
+pub fn print_surface() -> Result<(), String> {
+    let names: Vec<&str> = wisent_evaluators::registered()
+        .iter()
+        .map(|evaluator| evaluator.name())
+        .collect();
+    let document = serde_json::json!({ "surface": names });
     println!(
         "{}",
         serde_json::to_string_pretty(&document).map_err(|error| error.to_string())?

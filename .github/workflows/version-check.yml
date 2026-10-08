@@ -64,10 +64,9 @@ jobs:
           autoversion --help > /dev/null || { echo "::error::the rule does not answer"; false; }
 
       - name: Read the public surface
-        # No package dependencies: the surface is read from the evaluator classes
-        # with a parser by this repository's Rust program, so this stays cheap and cannot
-        # be broken by an unrelated dependency. A module that does not parse fails
-        # the step rather than silently shrinking the surface.
+        # The candidate surface is the evaluator names this tree's registry offers,
+        # printed by the program itself (`wisent-evaluators surface`), so the names a
+        # release is judged by are exactly the names `evaluate` accepts.
         run: |
           cargo run --locked --quiet -- surface > "$RUNNER_TEMP/candidate.json"
 
@@ -75,7 +74,7 @@ jobs:
         run: |
           set -euo pipefail
           released="$(jq -r .version released-surface.json)"
-          declared="$(awk -F'"' '/version=/{print $2; exit}' setup.py)"
+          declared="$(awk -F'"' '/^version = /{print $2; exit}' Cargo.toml)"
           echo "released: $released"
           echo "declared: $declared"
 
@@ -137,13 +136,13 @@ jobs:
 
           if [ "$declared" = "$released" ]; then
             if [ "$change" != "internal" ]; then
-              echo "::error::The public contract changed ($change) but setup.py still" \
+              echo "::error::The public contract changed ($change) but Cargo.toml still" \
                 "declares the released version $released. The next version must be $required."
               false
             fi
-            echo "setup.py still declares the released $released, and the contract is unchanged."
+            echo "Cargo.toml still declares the released $released, and the contract is unchanged."
           elif [ "$declared" != "$required" ]; then
-            echo "::error::setup.py declares $declared, but a $change change to" \
+            echo "::error::Cargo.toml declares $declared, but a $change change to" \
               "$released requires $required."
             false
           else

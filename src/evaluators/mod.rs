@@ -5,7 +5,9 @@ use anyhow::{bail, Result};
 use crate::{Evaluation, Request};
 
 mod generation;
+mod judged;
 mod math;
+mod tools;
 
 /// One way of scoring a response.
 pub trait Evaluator: Sync {
@@ -18,29 +20,33 @@ pub trait Evaluator: Sync {
     fn evaluate(&self, request: &Request) -> Result<Evaluation>;
 }
 
-static REGISTERED: &[&dyn Evaluator] = &[
+/// The evaluators with code of their own; the judged ones are data in
+/// `judged::JUDGED`.
+static CODED: &[&dyn Evaluator] = &[
     &generation::exact_match::ExactMatch,
     &generation::f1::F1,
+    &generation::halueval::HaluEval,
+    &generation::tag::Tag,
+    &tools::Bfcl,
     &math::MathAnswer,
     &math::Aime,
 ];
 
 /// Every evaluator, ordered by name.
 pub fn registered() -> Vec<&'static dyn Evaluator> {
-    let mut all = REGISTERED.to_vec();
+    let mut all: Vec<&'static dyn Evaluator> = CODED.to_vec();
+    all.extend(judged::JUDGED.iter().map(|judged| judged as &dyn Evaluator));
     all.sort_by_key(|evaluator| evaluator.name());
     all
 }
 
 /// The evaluator `name` selects, or the refusal that lists the names.
 pub fn named(name: &str) -> Result<&'static dyn Evaluator> {
-    match REGISTERED.iter().find(|evaluator| evaluator.name() == name) {
+    let all = registered();
+    match all.iter().find(|evaluator| evaluator.name() == name) {
         Some(found) => Ok(*found),
         None => {
-            let names: Vec<&str> = registered()
-                .iter()
-                .map(|evaluator| evaluator.name())
-                .collect();
+            let names: Vec<&str> = all.iter().map(|evaluator| evaluator.name()).collect();
             bail!(
                 "no evaluator is named {name:?}; the evaluators are {}",
                 names.join(", ")

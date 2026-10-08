@@ -12,6 +12,10 @@ pub struct Request {
     pub evaluator: String,
     pub response: String,
     pub expected: Expected,
+    /// The benchmark's question or task, which judged evaluators show their
+    /// judge beside the response.
+    #[serde(default)]
+    pub prompt: Option<String>,
     /// The answers a benchmark poses as choices, when it poses them: for a
     /// contrastive check, the correct one first and the incorrect one second.
     #[serde(default)]
@@ -37,6 +41,17 @@ impl Expected {
             Self::Many(answers) => answers,
         }
     }
+
+    /// The expected answer as a judge reads it: the one answer, or every
+    /// acceptable one as a JSON list.
+    pub fn shown(&self) -> String {
+        match self {
+            Self::One(answer) => answer.clone(),
+            Self::Many(answers) => {
+                serde_json::to_string(answers).expect("a list of strings always serializes")
+            }
+        }
+    }
 }
 
 impl Request {
@@ -45,6 +60,16 @@ impl Request {
         Options {
             values: &self.options,
             evaluator,
+        }
+    }
+
+    /// The benchmark's question, which `evaluator` needs.
+    pub fn question(&self, evaluator: &str) -> Result<&str> {
+        match &self.prompt {
+            Some(prompt) => Ok(prompt),
+            None => bail!(
+                "{evaluator} shows its judge the benchmark's question, and the request carries no prompt"
+            ),
         }
     }
 }
@@ -69,6 +94,21 @@ impl Options<'_> {
             },
             None => bail!(
                 "{} decides with options.{name}, and the request does not state it; state the value your calibration run measured",
+                self.evaluator
+            ),
+        }
+    }
+
+    /// A text the evaluator needs, such as the judge's Brama route.
+    pub fn text(&self, name: &str) -> Result<&str> {
+        match self.values.get(name) {
+            Some(Value::String(text)) if !text.trim().is_empty() => Ok(text.trim()),
+            Some(other) => bail!(
+                "{} reads options.{name} as a non-empty text, and the request states {other}",
+                self.evaluator
+            ),
+            None => bail!(
+                "{} needs options.{name}, and the request does not state it",
                 self.evaluator
             ),
         }

@@ -9,6 +9,7 @@
 //! does not carry refuses it by name.
 
 pub mod evaluators;
+pub mod judge;
 pub mod math;
 pub mod request;
 pub mod result;

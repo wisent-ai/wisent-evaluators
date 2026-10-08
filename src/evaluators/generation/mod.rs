@@ -3,3 +3,5 @@
 
 pub(super) mod exact_match;
 pub(super) mod f1;
+pub(super) mod halueval;
+pub(super) mod tag;

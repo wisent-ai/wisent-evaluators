@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{json, Map, Value};
 
-use crate::surface::surface;
+use super::surface::surface;
 
 const PROJECT: &str = "wisent-evaluators";
 const SDIST_MARKER: &str = "pypi-sdist";
@@ -191,7 +191,7 @@ fn identity() -> Result<(String, &'static str, Value, String), String> {
         .to_string();
     let (marker, entry) = artifact(&version)?;
     let mut tail = format!(
-        "{} unpacked and read by wisent-evaluators-release surface",
+        "{} unpacked and read by wisent-evaluators release surface",
         entry["filename"].as_str().unwrap_or_default()
     );
     if marker == WHEEL_MARKER {

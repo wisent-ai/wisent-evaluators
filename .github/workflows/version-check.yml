@@ -65,11 +65,11 @@ jobs:
 
       - name: Read the public surface
         # No package dependencies: the surface is read from the evaluator classes
-        # with a parser by the Rust tool in release/, so this stays cheap and cannot
+        # with a parser by this repository's Rust program, so this stays cheap and cannot
         # be broken by an unrelated dependency. A module that does not parse fails
         # the step rather than silently shrinking the surface.
         run: |
-          cargo run --locked --quiet --manifest-path release/Cargo.toml -- surface > "$RUNNER_TEMP/candidate.json"
+          cargo run --locked --quiet -- surface > "$RUNNER_TEMP/candidate.json"
 
       - name: Compare against the released contract
         run: |
@@ -241,7 +241,7 @@ jobs:
           marker="$(jq -r '.source | split(" ") | first' released-surface.json)"
           released="$(jq -r .version released-surface.json)"
 
-          cargo run --locked --quiet --manifest-path release/Cargo.toml -- baseline --best > "$RUNNER_TEMP/best.json"
+          cargo run --locked --quiet -- baseline --best > "$RUNNER_TEMP/best.json"
           best="$(cat "$RUNNER_TEMP/best.json")"
           best_version="$(printf '%s' "$best" | jq -r .version)"
           best_marker="$(printf '%s' "$best" | jq -r '.source | split(" ") | first')"

@@ -8,7 +8,7 @@ mod catalog;
 use anyhow::{bail, Result};
 use serde_json::{Map, Value};
 
-use crate::{judge, Evaluation, Request, Verdict};
+use crate::{brama, Evaluation, Request, Verdict};
 
 pub(in crate::evaluators) use catalog::JUDGED;
 
@@ -66,7 +66,7 @@ impl crate::Evaluator for Judged {
     }
 
     fn options(&self) -> &'static [(&'static str, &'static str)] {
-        judge::OPTIONS
+        brama::JUDGE_OPTIONS
     }
 
     fn evaluate(&self, request: &Request) -> Result<Evaluation> {
@@ -84,7 +84,7 @@ impl crate::Evaluator for Judged {
                 );
             }
         }
-        let answer = judge::ask(&request.options(self.name), &question)?;
+        let answer = brama::ask(&request.options(self.name), &question)?;
         let verdict = match self.answers {
             Answers::Labels(labels) => self
                 .label(&answer, labels.iter().map(|(label, _)| *label))

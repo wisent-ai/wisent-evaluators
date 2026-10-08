@@ -10,6 +10,7 @@ mod judged;
 mod label;
 mod math;
 mod overlap;
+mod similarity;
 mod tools;
 
 /// One way of scoring a response.
@@ -35,6 +36,7 @@ static CODED: &[&dyn Evaluator] = &[
     &choice::Choice,
     &overlap::darija::DarijaBench,
     &overlap::conala::Conala,
+    &similarity::Generation,
     &math::MathAnswer,
     &math::Aime,
 ];

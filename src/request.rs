@@ -20,6 +20,10 @@ pub struct Request {
     /// contrastive check, the correct one first and the incorrect one second.
     #[serde(default)]
     pub choices: Vec<String>,
+    /// The answers the benchmark marks wrong, when it lists them
+    /// (TruthfulQA's incorrect answers).
+    #[serde(default)]
+    pub incorrect: Vec<String>,
     /// The evaluator's options, by name.
     #[serde(default)]
     pub options: Map<String, Value>,

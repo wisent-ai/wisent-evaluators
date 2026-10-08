@@ -8,8 +8,8 @@
 //! is an option the caller states; an evaluator that needs one the request
 //! does not carry refuses it by name.
 
+pub mod brama;
 pub mod evaluators;
-pub mod judge;
 pub mod math;
 pub mod metrics;
 pub mod request;

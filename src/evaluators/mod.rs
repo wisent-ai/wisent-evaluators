@@ -6,6 +6,7 @@ use crate::{Evaluation, Request};
 
 mod generation;
 mod judged;
+mod label;
 mod math;
 mod tools;
 
@@ -28,6 +29,7 @@ static CODED: &[&dyn Evaluator] = &[
     &generation::halueval::HaluEval,
     &generation::tag::Tag,
     &tools::Bfcl,
+    &label::UserSpecified,
     &math::MathAnswer,
     &math::Aime,
 ];

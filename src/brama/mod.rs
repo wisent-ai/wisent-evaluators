@@ -38,14 +38,32 @@ pub const EMBEDDING_OPTION: (&str, &str) = (
 /// One connection pool for every request a run evaluates.
 static AGENT: LazyLock<ureq::Agent> = LazyLock::new(|| ureq::AgentBuilder::new().build());
 
-/// Asks the judge the request's options name and returns its answer,
-/// trimmed.
-pub fn ask(options: &Options<'_>, prompt: &str) -> Result<String> {
+/// The one property a judge's answer holds: the label it chose.
+const LABEL: &str = "label";
+
+/// Asks the judge the request's options name to choose one of `labels`,
+/// with the answer bound by a strict JSON schema whose only property is
+/// the label, and returns the answer as the judge sent it, trimmed: the
+/// evaluator reads the label from it and keeps the whole answer.
+pub fn judge(options: &Options<'_>, prompt: &str, labels: &[&str]) -> Result<String> {
     let body = json!({
         "model": options.text("judge_model")?,
         "messages": [{ "role": "user", "content": prompt }],
         "max_tokens": options.number("judge_max_tokens")?,
         "temperature": options.number("judge_temperature")?,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "judge_label",
+                "strict": true,
+                "schema": {
+                    "type": "object",
+                    "properties": { LABEL: { "type": "string", "enum": labels } },
+                    "required": [LABEL],
+                    "additionalProperties": false,
+                },
+            },
+        },
     });
     let value = post("/v1/chat/completions", &body, "judge call")?;
     match value
@@ -57,6 +75,22 @@ pub fn ask(options: &Options<'_>, prompt: &str) -> Result<String> {
     {
         Some(content) => Ok(content.trim().to_owned()),
         None => bail!("Brama's judge answer carried no assistant message"),
+    }
+}
+
+/// Which of `labels` a judge's `answer` chose, by its position, when the
+/// answer is the object the schema asks for and its label is one of them;
+/// otherwise why it is not.
+pub fn chosen(answer: &str, labels: &[&str]) -> Result<usize, String> {
+    let value = serde_json::from_str::<Value>(answer).map_err(|error| {
+        format!("the answer is not the label object the schema asks for: {error}")
+    })?;
+    let Some(said) = value.get(LABEL).and_then(Value::as_str) else {
+        return Err(format!("the answer names no `{LABEL}`"));
+    };
+    match labels.iter().position(|label| *label == said) {
+        Some(index) => Ok(index),
+        None => Err(format!("{said:?} is none of {}", labels.join(", "))),
     }
 }
 
@@ -80,13 +114,12 @@ pub fn embed(options: &Options<'_>, texts: &[&str]) -> Result<Vec<Vec<f64>>> {
     }
     let mut embeddings: Vec<Option<Vec<f64>>> = vec![None; texts.len()];
     for item in data {
-        let Some(index) = item
-            .pointer("/index")
-            .and_then(Value::as_u64)
-            .and_then(|index| usize::try_from(index).ok())
-        else {
+        let Some(index) = item.pointer("/index").and_then(Value::as_u64) else {
             bail!("an embedding in Brama's answer carries no index");
         };
+        let index = usize::try_from(index).with_context(|| {
+            format!("embedding index {index} in Brama's answer is out of range")
+        })?;
         let Some(vector) = item.pointer("/embedding").and_then(Value::as_array) else {
             bail!("embedding {index} in Brama's answer carries no vector");
         };
@@ -152,16 +185,14 @@ fn variable(name: &str) -> Result<String> {
     }
 }
 
-/// Brama's own sentence from its error envelope, else the body as sent.
+/// Brama's own sentence from its error envelope, else the body as sent,
+/// saying why it holds no sentence.
 fn refusal(body: &str) -> String {
-    let message = serde_json::from_str::<Value>(body).ok().and_then(|value| {
-        value
-            .pointer("/error/message")
-            .and_then(Value::as_str)
-            .map(str::to_owned)
-    });
-    match message {
-        Some(message) => message,
-        None => body.trim().to_owned(),
+    match serde_json::from_str::<Value>(body) {
+        Ok(value) => match value.pointer("/error/message").and_then(Value::as_str) {
+            Some(message) => message.to_owned(),
+            None => format!("{} (an error envelope with no error.message)", body.trim()),
+        },
+        Err(error) => format!("{} (not a JSON error envelope: {error})", body.trim()),
     }
 }

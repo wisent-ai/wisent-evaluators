@@ -1,7 +1,8 @@
 //! Evaluators that ask a judge model, through Brama, whether a response
 //! does what the benchmark asks: each states the benchmark's own judging
-//! question and the answers the judge may give, and a verdict is read from
-//! the judge's answer by exact label, never by finding a word inside it.
+//! question and the answers the judge may give, the judge's answer is bound
+//! by a strict JSON schema to one of those labels, and a verdict is read
+//! from the label it chose, never by finding a word inside prose.
 
 mod catalog;
 
@@ -46,13 +47,32 @@ impl Judged {
             .replace(RESPONSE, &request.response))
     }
 
-    /// The label the judge answered, when its answer is exactly one label
-    /// (surrounding punctuation and case aside).
+    /// The label the request's expected answer names, when it is exactly
+    /// one label (surrounding punctuation and case aside).
     fn label<'a>(&self, answer: &str, labels: impl Iterator<Item = &'a str>) -> Option<&'a str> {
         let said = answer
             .trim_matches(|ch: char| !ch.is_alphanumeric() && ch != '_')
             .to_uppercase();
         labels.into_iter().find(|label| *label == said)
+    }
+
+    /// The verdict the judge's label at `index`, in the order the evaluator
+    /// declares its labels, gives.
+    fn verdict(&self, index: usize, request: &Request) -> Verdict {
+        match self.answers {
+            Answers::Labels(labels) => {
+                let (_, verdict) = labels[index];
+                verdict
+            }
+            Answers::Expected(labels) => {
+                let holds = self.label(&request.expected.shown(), labels.iter().copied());
+                if holds == Some(labels[index]) {
+                    Verdict::Truthful
+                } else {
+                    Verdict::Untruthful
+                }
+            }
+        }
     }
 }
 
@@ -84,22 +104,22 @@ impl crate::Evaluator for Judged {
                 );
             }
         }
-        let answer = brama::ask(&request.options(self.name), &question)?;
-        let verdict = match self.answers {
-            Answers::Labels(labels) => self
-                .label(&answer, labels.iter().map(|(label, _)| *label))
-                .and_then(|said| labels.iter().find(|(label, _)| *label == said))
-                .map(|(_, verdict)| *verdict),
-            Answers::Expected(labels) => {
-                let holds = self.label(&request.expected.shown(), labels.iter().copied());
-                self.label(&answer, labels.iter().copied()).map(|said| {
-                    if Some(said) == holds {
-                        Verdict::Truthful
-                    } else {
-                        Verdict::Untruthful
-                    }
-                })
-            }
+        let labels: Vec<&str> = match self.answers {
+            Answers::Labels(labels) => labels.iter().map(|(label, _)| *label).collect(),
+            Answers::Expected(labels) => labels.to_vec(),
+        };
+        let answer = brama::judge(&request.options(self.name), &question, &labels)?;
+        // A judge that chose no label gives no verdict: `unknown`, with its
+        // answer and why in the evaluation.
+        let (verdict, details) = match brama::chosen(&answer, &labels) {
+            Ok(index) => (
+                self.verdict(index, request),
+                format!("the judge chose {}", labels[index]),
+            ),
+            Err(why) => (
+                Verdict::Unknown,
+                format!("the judge answered {answer:?}: {why}"),
+            ),
         };
         let mut meta = Map::new();
         meta.insert("judge_answer".into(), Value::from(answer.as_str()));
@@ -109,15 +129,9 @@ impl crate::Evaluator for Judged {
         );
         Ok(Evaluation {
             evaluator: self.name,
-            verdict: match verdict {
-                Some(verdict) => verdict,
-                None => Verdict::Unknown,
-            },
+            verdict,
             score: None,
-            details: match verdict {
-                Some(_) => format!("the judge answered {answer:?}"),
-                None => format!("the judge answered {answer:?}, which is none of its labels"),
-            },
+            details,
             meta,
         })
     }

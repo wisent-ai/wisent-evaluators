@@ -93,9 +93,13 @@ repeated samples.
 They reach their model through Brama, never a provider SDK. Export
 `BRAMA_URL` and `BRAMA_BEARER`; the request names the route
 (`judge_model` or `embedding_model`), and a judge's `judge_max_tokens` and
-`judge_temperature`. A judge that answers with no label the benchmark
-defines gives `unknown`, with its answer in `meta.judge_answer`; no label is
-ever guessed from words inside the answer.
+`judge_temperature`. The judge's answer is bound by a strict JSON schema
+(`response_format` `json_schema`, name `judge_label`) to an object whose
+only property, `label`, is one of the labels the benchmark defines, so the
+judge route must honour structured output. An answer that is not that object
+or names no such label gives `unknown`, with the answer in
+`meta.judge_answer` and why in `details`; no label is ever guessed from words
+inside the answer.
 
 ### The code sandbox
 

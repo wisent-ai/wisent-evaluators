@@ -41,40 +41,52 @@ static AGENT: LazyLock<ureq::Agent> = LazyLock::new(|| ureq::AgentBuilder::new()
 /// The one property a judge's answer holds: the label it chose.
 const LABEL: &str = "label";
 
+/// The function the judge answers through: its one parameter is the label.
+const JUDGE_FUNCTION: &str = "judge_label";
+
 /// Asks the judge the request's options name to choose one of `labels`,
-/// with the answer bound by a strict JSON schema whose only property is
-/// the label, and returns the answer as the judge sent it, trimmed: the
-/// evaluator reads the label from it and keeps the whole answer.
+/// as one required call of `judge_label` whose only parameter is the label
+/// (strict), and returns the call's arguments as the judge sent them,
+/// trimmed: the evaluator reads the label from them and keeps the whole
+/// answer. An answer without exactly that call is refused with it.
 pub fn judge(options: &Options<'_>, prompt: &str, labels: &[&str]) -> Result<String> {
     let body = json!({
         "model": options.text("judge_model")?,
         "messages": [{ "role": "user", "content": prompt }],
         "max_tokens": options.number("judge_max_tokens")?,
         "temperature": options.number("judge_temperature")?,
-        "response_format": {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "judge_label",
+        "tools": [{
+            "type": "function",
+            "function": {
+                "name": JUDGE_FUNCTION,
+                "description": "The label the judge chose.",
                 "strict": true,
-                "schema": {
+                "parameters": {
                     "type": "object",
                     "properties": { LABEL: { "type": "string", "enum": labels } },
                     "required": [LABEL],
                     "additionalProperties": false,
                 },
             },
-        },
+        }],
+        "tool_choice": { "type": "function", "function": { "name": JUDGE_FUNCTION } },
     });
     let value = post("/v1/chat/completions", &body, "judge call")?;
-    match value
+    let calls = value
         .pointer("/choices")
         .and_then(Value::as_array)
         .and_then(|choices| choices.first())
-        .and_then(|choice| choice.pointer("/message/content"))
-        .and_then(Value::as_str)
-    {
-        Some(content) => Ok(content.trim().to_owned()),
-        None => bail!("Brama's judge answer carried no assistant message"),
+        .and_then(|choice| choice.pointer("/message/tool_calls"))
+        .and_then(Value::as_array);
+    let Some([call]) = calls.map(Vec::as_slice) else {
+        bail!("Brama's judge did not answer by exactly one call of {JUDGE_FUNCTION}: {value}");
+    };
+    if call.pointer("/function/name").and_then(Value::as_str) != Some(JUDGE_FUNCTION) {
+        bail!("Brama's judge called a function other than {JUDGE_FUNCTION}: {value}");
+    }
+    match call.pointer("/function/arguments").and_then(Value::as_str) {
+        Some(arguments) => Ok(arguments.trim().to_owned()),
+        None => bail!("Brama's judge call of {JUDGE_FUNCTION} carried no arguments: {value}"),
     }
 }
 

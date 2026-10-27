@@ -62,19 +62,17 @@ fn string_literal(node: Node, source: &str) -> Option<String> {
     Some(value)
 }
 
-/// The final segment of a base class expression, or "" when it has none.
-fn base_name(node: Node, source: &str) -> String {
+/// The final segment of a base class expression, when it has one.
+fn base_name(node: Node, source: &str) -> Option<String> {
     match node.kind() {
-        "identifier" => text(node, source).to_string(),
+        "identifier" => Some(text(node, source).to_string()),
         "attribute" => node
             .child_by_field_name("attribute")
-            .map(|attribute| text(attribute, source).to_string())
-            .unwrap_or_default(),
+            .map(|attribute| text(attribute, source).to_string()),
         "subscript" => node
             .child_by_field_name("value")
-            .map(|value| base_name(value, source))
-            .unwrap_or_default(),
-        _ => String::new(),
+            .and_then(|value| base_name(value, source)),
+        _ => None,
     }
 }
 
@@ -111,23 +109,20 @@ fn registered_name(class: Node, source: &str) -> String {
     found
 }
 
-/// Every class in one module; a module that does not parse is a refusal.
-fn classes(path: &Path) -> Result<Vec<Class>, String> {
+/// Every class in one module, or `None` when the module does not parse.
+fn classes(path: &Path) -> Result<Option<Vec<Class>>, String> {
     let source =
         std::fs::read_to_string(path).map_err(|error| format!("{}: {error}", path.display()))?;
     let mut parser = Parser::new();
     parser
         .set_language(&tree_sitter_python::LANGUAGE.into())
         .map_err(|error| format!("the Python grammar did not load: {error}"))?;
-    let tree = parser
+    let Some(tree) = parser
         .parse(&source, None)
         .filter(|tree| !tree.root_node().has_error())
-        .ok_or_else(|| {
-            format!(
-                "{}: does not parse, so the surface is unknown",
-                path.display()
-            )
-        })?;
+    else {
+        return Ok(None);
+    };
     let mut found = Vec::new();
     let mut pending = vec![tree.root_node()];
     while let Some(node) = pending.pop() {
@@ -145,8 +140,7 @@ fn classes(path: &Path) -> Result<Vec<Class>, String> {
             bases.extend(
                 arguments
                     .named_children(&mut inner)
-                    .map(|base| base_name(base, &source))
-                    .filter(|base| !base.is_empty()),
+                    .filter_map(|base| base_name(base, &source)),
             );
         }
         found.push(Class {
@@ -155,7 +149,7 @@ fn classes(path: &Path) -> Result<Vec<Class>, String> {
             registered: registered_name(node, &source),
         });
     }
-    Ok(found)
+    Ok(Some(found))
 }
 
 fn python_files(directory: &Path, found: &mut Vec<PathBuf>) -> Result<(), String> {
@@ -174,7 +168,9 @@ fn python_files(directory: &Path, found: &mut Vec<PathBuf>) -> Result<(), String
     Ok(())
 }
 
-/// The registered names under `root`, and the modules `tolerant` skipped.
+/// The registered names under `root`, and the modules `tolerant` skipped
+/// because they do not parse. Any other failure to read a module refuses,
+/// tolerant or not.
 pub fn surface(root: &Path, tolerant: bool) -> Result<(Vec<String>, Vec<String>), String> {
     let package = root.join("wisent");
     if !package.is_dir() {
@@ -190,15 +186,20 @@ pub fn surface(root: &Path, tolerant: bool) -> Result<(Vec<String>, Vec<String>)
     let mut declared = Vec::new();
     let mut skipped = Vec::new();
     for path in files {
-        match classes(&path) {
-            Ok(found) => declared.extend(found),
-            Err(_) if tolerant => skipped.push(
+        match classes(&path)? {
+            Some(found) => declared.extend(found),
+            None if tolerant => skipped.push(
                 path.strip_prefix(root)
-                    .unwrap_or(&path)
+                    .expect("every module was found under root")
                     .display()
                     .to_string(),
             ),
-            Err(refusal) => return Err(refusal),
+            None => {
+                return Err(format!(
+                    "{}: does not parse, so the surface is unknown",
+                    path.display()
+                ))
+            }
         }
     }
     let mut evaluators: BTreeSet<String> = BTreeSet::from([ROOT_CLASS.to_string()]);

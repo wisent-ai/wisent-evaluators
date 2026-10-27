@@ -21,9 +21,10 @@ const WHEEL_MARKER: &str = "pypi-wheel";
 const PURE_PYTHON_WHEEL: &str = "-py3-none-any.whl";
 
 fn fetch(url: &str) -> Result<Vec<u8>, String> {
-    let response = ureq::get(url)
-        .call()
-        .map_err(|error| format!("{url}: {error}"))?;
+    let response = stado_wait::blocking(stado_wait::Kind::Network, format!("GET {url}"), "PyPI", || {
+        ureq::get(url).call()
+    })
+    .map_err(|error| format!("{url}: {error}"))?;
     let mut body = Vec::new();
     response
         .into_reader()
@@ -36,13 +37,26 @@ fn json_at(url: &str) -> Result<Value, String> {
     serde_json::from_slice(&fetch(url)?).map_err(|error| format!("{url} is not JSON: {error}"))
 }
 
-/// Every recoverable artifact of one published version, by marker.
+/// The text `field` of one PyPI file entry, or the refusal naming it.
+fn entry_text<'entry>(entry: &'entry Value, field: &str) -> Result<&'entry str, String> {
+    entry[field]
+        .as_str()
+        .ok_or_else(|| format!("a PyPI file entry of {PROJECT} carries no text {field}: {entry}"))
+}
+
+/// Every recoverable artifact of one published version, by marker. A release
+/// document without its `urls` list is refused: read as empty it reported a
+/// version that publishes nothing recoverable.
 fn candidates(version: &str) -> Result<Map<String, Value>, String> {
-    let release = json_at(&format!("https://pypi.org/pypi/{PROJECT}/{version}/json"))?;
+    let url = format!("https://pypi.org/pypi/{PROJECT}/{version}/json");
+    let release = json_at(&url)?;
+    let files = release["urls"]
+        .as_array()
+        .ok_or_else(|| format!("{url} lists no urls array of published files"))?;
     let mut found = Map::new();
-    for entry in release["urls"].as_array().into_iter().flatten() {
-        let filename = entry["filename"].as_str().unwrap_or_default();
-        if entry["packagetype"].as_str() == Some("sdist") {
+    for entry in files {
+        let filename = entry_text(entry, "filename")?;
+        if entry_text(entry, "packagetype")? == "sdist" {
             found.entry(SDIST_MARKER).or_insert_with(|| entry.clone());
         } else if filename.ends_with(PURE_PYTHON_WHEEL) {
             found.entry(WHEEL_MARKER).or_insert_with(|| entry.clone());
@@ -66,12 +80,8 @@ fn artifact(version: &str) -> Result<(&'static str, Value), String> {
 
 /// Unpack an artifact into `scratch` and return the root that holds `wisent/`.
 fn unpack(marker: &str, entry: &Value, scratch: &Path) -> Result<PathBuf, String> {
-    let filename = entry["filename"].as_str().unwrap_or_default();
-    let payload = fetch(
-        entry["url"]
-            .as_str()
-            .ok_or_else(|| format!("{filename} names no url"))?,
-    )?;
+    let filename = entry_text(entry, "filename")?;
+    let payload = fetch(entry_text(entry, "url")?)?;
     if marker == SDIST_MARKER {
         tar::Archive::new(flate2::read::GzDecoder::new(payload.as_slice()))
             .unpack(scratch)
@@ -84,11 +94,15 @@ fn unpack(marker: &str, entry: &Value, scratch: &Path) -> Result<PathBuf, String
     if scratch.join("wisent").is_dir() {
         return Ok(scratch.to_path_buf());
     }
-    let inner: Vec<PathBuf> = std::fs::read_dir(scratch)
-        .map_err(|error| format!("{}: {error}", scratch.display()))?
-        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
-        .filter(|child| child.join("wisent").is_dir())
-        .collect();
+    let mut inner: Vec<PathBuf> = Vec::new();
+    for listed in std::fs::read_dir(scratch).map_err(|error| format!("{}: {error}", scratch.display()))? {
+        let child = listed
+            .map_err(|error| format!("{}: an entry could not be read: {error}", scratch.display()))?
+            .path();
+        if child.join("wisent").is_dir() {
+            inner.push(child);
+        }
+    }
     match inner.as_slice() {
         [root] => Ok(root.clone()),
         _ => Err(format!(
@@ -117,6 +131,13 @@ fn recover(
     Ok(read)
 }
 
+/// The file name PyPI gives a release entry, or the refusal naming the entry.
+fn filename(entry: &Value) -> Result<&str, String> {
+    entry["filename"]
+        .as_str()
+        .ok_or_else(|| format!("PyPI names no filename for the release entry {entry}"))
+}
+
 fn cross_check(version: &str, scratch: &Path) -> Result<(), String> {
     let found = candidates(version)?;
     let missing: Vec<&str> = [SDIST_MARKER, WHEEL_MARKER]
@@ -132,14 +153,12 @@ fn cross_check(version: &str, scratch: &Path) -> Result<(), String> {
     let mut surfaces = Map::new();
     let mut refused = Vec::new();
     for (marker, entry) in &found {
+        let name = filename(entry)?;
         match recover(marker, entry, scratch) {
             Ok((names, _)) => {
                 surfaces.insert(marker.clone(), json!(names));
             }
-            Err(why) => refused.push(format!(
-                "{marker} {}: {why}",
-                entry["filename"].as_str().unwrap_or_default()
-            )),
+            Err(why) => refused.push(format!("{marker} {name}: {why}")),
         }
     }
     if !refused.is_empty() {
@@ -175,8 +194,8 @@ fn cross_check(version: &str, scratch: &Path) -> Result<(), String> {
     }
     println!(
         "{version}: {} and {} agree on {} names",
-        found[SDIST_MARKER]["filename"].as_str().unwrap_or_default(),
-        found[WHEEL_MARKER]["filename"].as_str().unwrap_or_default(),
+        filename(&found[SDIST_MARKER])?,
+        filename(&found[WHEEL_MARKER])?,
         from_sdist.len()
     );
     Ok(())
@@ -192,7 +211,7 @@ fn identity() -> Result<(String, &'static str, Value, String), String> {
     let (marker, entry) = artifact(&version)?;
     let mut tail = format!(
         "{} unpacked and read by wisent-evaluators release surface",
-        entry["filename"].as_str().unwrap_or_default()
+        filename(&entry)?
     );
     if marker == WHEEL_MARKER {
         tail.push_str("; that release publishes no sdist");

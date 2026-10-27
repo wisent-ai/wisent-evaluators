@@ -76,7 +76,7 @@ Run `wisent-evaluators show NAME` for each evaluator's options.
 | `exact_match` | GSM8K, TriviaQA, LAMBADA, Okapi TruthfulQA | normalized equality (accents, punctuation, spacing, case), or `raw` and `case_sensitive` |
 | `f1` | SQuAD, DROP, MLQA | SQuAD's word-bag F1 against `threshold` and `partial_threshold` |
 | `choice` | MMLU-Redux, Okapi MMLU and HellaSwag, EusExams, CLUE-WSC, PAWS-X, Inverse Scaling, MedConceptsQA, MMMU | the option the response picks, by its text or by a letter that is its first word ("Absolutely" does not pick A) |
-| `math`, `aime` | MATH, OlympiadBench, CNMO, LiveMathBench, PolyMath, AIME | the last `\boxed{}` (or what follows `####`) equal under MATH's LaTeX normalization, or in value within `relative_tolerance` |
+| `math`, `aime` | MATH, OlympiadBench, CNMO, LiveMathBench, PolyMath, AIME | the last `\boxed{}` (or what follows `####`) equal under MATH's LaTeX normalization, or in value within `relative_tolerance`; `aime` compares integers and refuses a request whose expected answer is not an integer, naming it |
 | `halueval`, `tag`, `bfcl` | HaluEval, TAG, BFCL | word overlap against `overlap_threshold`; the tag's answer; a function call read with the Python grammar |
 | `darija_bench`, `conala`, `nl2bash`, `longform_writing` | DarijaBench, CoNaLa, NL2Bash, LongForm | the higher of BLEU and ROUGE-L, code-token BLEU, character BLEU, METEOR (exact-match stage), each against `threshold` |
 | `generation` | free-form answers, TruthfulQA generation | word-for-word, else embedding similarity through Brama against `similarity_threshold`; with `incorrect`, which side the response is closer to |

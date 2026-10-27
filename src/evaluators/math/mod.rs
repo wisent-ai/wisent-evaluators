@@ -3,7 +3,7 @@
 //! MATH's LaTeX equivalence, and equal values when the caller states a
 //! tolerance) and `aime` (AIME's integer answers).
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use serde_json::{Map, Value};
 
 use crate::{math, Evaluation, Request, Verdict};
@@ -153,13 +153,29 @@ impl crate::Evaluator for Aime {
     }
 
     fn evaluate(&self, request: &Request) -> Result<Evaluation> {
-        let answer = final_answer(&request.response);
-        let model: Option<i64> = answer.and_then(|answer| answer.parse().ok());
-        let matched = request
+        // An expected answer that is not an integer can never be matched, so
+        // it is refused as a dataset fault rather than graded as a miss.
+        let expected = request
             .expected
             .answers()
             .iter()
-            .find(|expected| model.is_some() && expected.trim().parse::<i64>().ok() == model);
+            .map(|expected| {
+                let integer = expected.trim().parse::<i64>().with_context(|| {
+                    format!("{AIME} expects integer answers, and {expected:?} is not one")
+                })?;
+                Ok::<_, anyhow::Error>((expected, integer))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let answer = final_answer(&request.response);
+        let parsed = answer.map(str::parse::<i64>);
+        let model = match &parsed {
+            Some(Ok(integer)) => Some(*integer),
+            Some(Err(_not_an_integer)) | None => None,
+        };
+        let matched = expected
+            .iter()
+            .find(|(_, integer)| Some(*integer) == model)
+            .map(|(text, _)| *text);
         let mut meta = Map::new();
         meta.insert("model_answer".into(), Value::from(answer));
         meta.insert("model_integer".into(), Value::from(model));
@@ -170,15 +186,17 @@ impl crate::Evaluator for Aime {
             evaluator: AIME,
             verdict: verdict(matched.is_some()),
             score: None,
-            details: match (answer, model) {
-                (Some(_), Some(model)) => {
+            details: match (answer, &parsed) {
+                (Some(_), Some(Ok(model))) => {
                     format!(
                         "model integer {model} against {:?}",
                         request.expected.answers()
                     )
                 }
-                (Some(answer), None) => format!("model answer {answer:?} is not an integer"),
-                (None, _) => "the response is empty".to_owned(),
+                (Some(answer), Some(Err(error))) => {
+                    format!("model answer {answer:?} is not an integer: {error}")
+                }
+                (None, _) | (Some(_), None) => "the response is empty".to_owned(),
             },
             meta,
         })

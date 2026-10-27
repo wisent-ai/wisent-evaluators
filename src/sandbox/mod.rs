@@ -145,13 +145,21 @@ pub fn run(options: &Options<'_>, files: &[(&str, &str)], program: &str) -> Resu
     // The archive is sent from its own thread so a container that prints
     // before reading all of it cannot stall both sides.
     let sender = std::thread::spawn(move || stdin.write_all(&archive));
-    let output = child
-        .wait_with_output()
-        .context("failed to wait for docker run")?;
+    let output = stado_wait::blocking(stado_wait::Kind::Process, "docker run", image, move || {
+        child.wait_with_output()
+    })
+    .context("failed to wait for docker run")?;
     let elapsed = started.elapsed();
     match sender.join() {
         Ok(sent) => sent.context("failed to send the files to the container")?,
-        Err(_) => bail!("the thread sending the files to the container panicked"),
+        Err(panic) => {
+            let reason = match (panic.downcast_ref::<&str>(), panic.downcast_ref::<String>()) {
+                (Some(text), _) => (*text).to_string(),
+                (None, Some(text)) => text.clone(),
+                (None, None) => "a panic payload that is not text".to_string(),
+            };
+            bail!("the thread sending the files to the container panicked: {reason}")
+        }
     }
     let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();

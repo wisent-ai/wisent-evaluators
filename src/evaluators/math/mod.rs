@@ -168,10 +168,9 @@ impl crate::Evaluator for Aime {
             .collect::<Result<Vec<_>>>()?;
         let answer = final_answer(&request.response);
         let parsed = answer.map(str::parse::<i64>);
-        let model = match &parsed {
-            Some(Ok(integer)) => Some(*integer),
-            Some(Err(_not_an_integer)) | None => None,
-        };
+        let model = parsed
+            .as_ref()
+            .and_then(|parsed| parsed.as_ref().ok().copied());
         let matched = expected
             .iter()
             .find(|(_, integer)| Some(*integer) == model)
